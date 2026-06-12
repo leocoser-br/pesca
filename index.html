@@ -26,7 +26,7 @@
 html,body{height:100%;overflow:hidden;background:var(--navy);color:var(--foam);
   font-family:'Barlow',-apple-system,sans-serif;font-size:15px}
 #app{height:100%;display:flex;flex-direction:column}
-
+ 
 /* ---------- header ---------- */
 header{padding:calc(var(--sat) + 8px) 14px 8px;background:var(--navy);
   border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;z-index:1200}
@@ -47,14 +47,14 @@ header{padding:calc(var(--sat) + 8px) 14px 8px;background:var(--navy);
 #btnRefresh.spin svg{animation:rot 1s linear infinite}
 @keyframes rot{to{transform:rotate(360deg)}}
 .stamp{font-size:10px;color:var(--mist);text-align:right;line-height:1.3;min-width:54px}
-
+ 
 /* ---------- views ---------- */
 main{flex:1;position:relative;overflow:hidden}
 .view{position:absolute;inset:0;display:none}
 .view.active{display:block}
 #map{height:100%;background:#0A1C2C}
 .leaflet-container{font-family:'Barlow'}
-
+ 
 /* marcador-boia do navio */
 .buoy{display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6))}
 .buoy .days{font-family:'Barlow Condensed';font-weight:700;font-size:14px;color:#06121D;
@@ -67,11 +67,11 @@ main{flex:1;position:relative;overflow:hidden}
 .buoy.live .days::after{content:'';position:absolute;width:42px;height:42px;border-radius:50%;
   border:1.5px solid currentColor;opacity:.5;animation:ping 2.4s ease-out infinite}
 @keyframes ping{0%{transform:scale(.6);opacity:.6}100%{transform:scale(1.25);opacity:0}}
-
+ 
 /* marcador do usuário */
 .me{width:18px;height:18px;border-radius:50%;background:var(--cyan);border:3px solid #fff;
   box-shadow:0 0 0 6px rgba(55,196,221,.25)}
-
+ 
 /* popup */
 .leaflet-popup-content-wrapper{background:var(--panel);color:var(--foam);border-radius:12px;
   border:1px solid var(--line)}
@@ -83,7 +83,7 @@ main{flex:1;position:relative;overflow:hidden}
   border-bottom:1px dashed var(--line)}
 .pp-row b{font-weight:600}
 .pp-row:last-child{border-bottom:none}
-
+ 
 /* ---------- lista ---------- */
 #viewList{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px calc(var(--sab) + 76px)}
 .listbar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
@@ -114,7 +114,7 @@ main{flex:1;position:relative;overflow:hidden}
   background:rgba(255,179,71,.1);color:var(--amber);border:1px dashed rgba(255,179,71,.35)}
 .cberth.none{background:rgba(91,212,149,.08);color:var(--green);border-color:rgba(91,212,149,.3)}
 .empty{padding:40px 20px;text-align:center;color:var(--mist);line-height:1.6}
-
+ 
 /* ---------- config ---------- */
 #viewCfg{overflow-y:auto;padding:16px 16px calc(var(--sab) + 76px)}
 .cfgblock{background:var(--panel);border:1px solid var(--line);border-radius:14px;
@@ -132,7 +132,7 @@ main{flex:1;position:relative;overflow:hidden}
 .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--mist)}
 .legend span{display:flex;align-items:center;gap:5px}
 .legend i{width:12px;height:12px;border-radius:50%;display:inline-block}
-
+ 
 /* ---------- tabs ---------- */
 nav{display:flex;background:var(--navy);border-top:1px solid var(--line);
   padding:6px 8px calc(var(--sab) + 6px);z-index:1200}
@@ -151,7 +151,7 @@ nav button.active{color:var(--cyan)}
 </head>
 <body>
 <div id="app">
-
+ 
 <header>
   <div class="brand">PESCA NOS NAVIOS<small>VIX · FUNDEADOS</small></div>
   <div class="lights">
@@ -164,10 +164,10 @@ nav button.active{color:var(--cyan)}
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
   </button>
 </header>
-
+ 
 <main>
   <div class="view active" id="viewMap"><div id="map"></div></div>
-
+ 
   <div class="view" id="viewList">
     <div class="listbar">
       <h2>RANKING DE ISCAS</h2>
@@ -175,7 +175,7 @@ nav button.active{color:var(--cyan)}
     </div>
     <div id="cards"><div class="empty">Carregando navios fundeados…</div></div>
   </div>
-
+ 
   <div class="view" id="viewCfg">
     <div class="cfgblock">
       <h3>POSIÇÃO AO VIVO (AISSTREAM)</h3>
@@ -203,10 +203,13 @@ nav button.active{color:var(--cyan)}
     <div class="cfgblock">
       <h3>FONTES</h3>
       <p>Praticagem Espírito Santo (fundeados e manobras previstas) — atualização automática a cada 10 min. AISStream.io para posições ao vivo. Condição de carga estimada pelo calado (proa/popa e relação calado/LOA).</p>
+      <a href="https://www.praticagem.org.br/navios-fundeados.html" target="_blank" rel="noopener"
+         style="display:inline-block;margin-top:4px;color:var(--cyan);font-weight:600;font-size:13px;
+                text-decoration:underline">Abrir site da Praticagem ↗</a>
     </div>
   </div>
 </main>
-
+ 
 <nav>
   <button id="tabMap" class="active">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21"/><line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/></svg>
@@ -218,19 +221,19 @@ nav button.active{color:var(--cyan)}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     AJUSTES</button>
 </nav>
-
+ 
 </div>
 <div class="toast" id="toast"></div>
-
+ 
 <script>
 /* =====================================================================
    Pesca nos Navios - Vix — iscas nos navios fundeados
    Dados: Praticagem ES (fundeados.asp / previstas.asp) + AISStream.io
    ===================================================================== */
-
+ 
 // >>> Cole aqui sua chave do aisstream.io para conexão automática <<<
 const AIS_KEY_PADRAO = "";
-
+ 
 const URL_FUNDEADOS = "https://www.praticagem.org.br/asp/fundeados.asp";
 const URL_PREVISTAS = "https://www.praticagem.org.br/asp/previstas.asp";
 // Fonte primária: r.jina.ai (retorna a tabela em markdown, testado e funcionando)
@@ -242,13 +245,13 @@ const PROXIES = [
 ];
 const REFRESH_MS = 10 * 60 * 1000;
 const HEAT = ["#5A7A93", "#37C4DD", "#FFB347", "#FF6B5E"];
-
+ 
 const TIPOS = {
   BC: "Graneleiro", BO: "Mineraleiro", GO: "Carga geral", CC: "Porta-contêiner",
   TR: "Petroleiro", TP: "Tanque (produtos)", TW: "Tanque químico", TG: "Gaseiro",
   RV: "Ro-Ro veículos", RP: "Ro-Ro", OQ: "Apoio offshore", OX: "Apoio offshore"
 };
-
+ 
 const state = {
   ships: {},          // key: nome normalizado
   me: null,           // {lat, lon}
@@ -257,14 +260,14 @@ const state = {
   ws: null, wsTimer: null, aisKey: AIS_KEY_PADRAO,
   selLine: null
 };
-
+ 
 /* ---------------- util ---------------- */
 const $ = id => document.getElementById(id);
 const norm = s => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 const toast = m => { const t = $("toast"); t.textContent = m; t.classList.add("show");
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 3200); };
 const setDot = (id, cls) => { const d = $(id); d.className = "dot" + (cls ? " " + cls : ""); };
-
+ 
 function parseCoord(txt) {           // "20 23,63 S" → -20.3938
   const m = (txt || "").trim().match(/(\d+)\s+(\d+)[,.](\d+)\s*([NSEW])/i);
   if (!m) return null;
@@ -296,7 +299,7 @@ const cardinal = b => CARD[Math.round(b / 22.5) % 16];
 const heatColor = d => d < 1 ? HEAT[0] : d < 3 ? HEAT[1] : d < 7 ? HEAT[2] : HEAT[3];
 const fmtDays = d => d < 1 ? Math.round(d * 24) + "h" : (d < 10 ? d.toFixed(1) : Math.round(d)) + "d";
 const shipType = code => { const m = (code || "").match(/[A-Z]{2}$/); return (m && TIPOS[m[0]]) || code || "—"; };
-
+ 
 function cargoStatus(s) {            // → {label, cls}
   const loa = s.loaM || s.aisLoaM;
   let dr = s.aisDraught || null;
@@ -308,7 +311,7 @@ function cargoStatus(s) {            // → {label, cls}
   if (r <= 0.038 || trim >= 1.5) return { label: "LASTRO (VAZIO)", cls: "ballast" };
   return { label: "PARCIAL", cls: "partial" };
 }
-
+ 
 /* ---------------- fetch (jina primário, proxies fallback) ---------------- */
 async function fetchTimeout(u, ms) {
   const ctl = new AbortController();
@@ -332,11 +335,11 @@ async function fetchAny(url) {
   }
   throw new Error("fontes indisponíveis");
 }
-
+ 
 /* ---------------- parsers Praticagem ---------------- */
 const AREAS = ["TUBARAO E VITORIA", "BARRA DO RIACHO", "UBU"];
 const RE_DATE = /^\d{2}\/\d{2}\/\d{4}$/;
-
+ 
 /* --- formato markdown (r.jina.ai) --- */
 function mdRows(txt) {
   return txt.split("\n").map(l => l.trim()).filter(l => l.startsWith("|"))
@@ -385,9 +388,9 @@ function parsePrevistasMd(txt) {
   }
   return out;
 }
-
+ 
 /* --- formato HTML (proxies de fallback) --- */
-
+ 
 function parseFundeados(html) {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const out = []; let area = AREAS[0];
@@ -409,7 +412,7 @@ function parseFundeados(html) {
   });
   return out;
 }
-
+ 
 function parsePrevistas(html) {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const out = [];
@@ -430,7 +433,7 @@ function parsePrevistas(html) {
   });
   return out;
 }
-
+ 
 /* ---------------- carga de dados ---------------- */
 async function loadData(manual) {
   const btn = $("btnRefresh"); btn.classList.add("spin");
@@ -444,7 +447,7 @@ async function loadData(manual) {
       if (!prevByKey[p.key]) prevByKey[p.key] = [];
       prevByKey[p.key].push(p);
     });
-
+ 
     const seen = new Set();
     fund.forEach(f => {
       seen.add(f.key);
@@ -461,7 +464,7 @@ async function loadData(manual) {
     });
     // remove navios que saíram do fundeio
     Object.keys(state.ships).forEach(k => { if (!seen.has(k)) delete state.ships[k]; });
-
+ 
     setDot("dotPrat", "ok");
     $("stamp").innerHTML = "Praticagem<br>" +
       new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -473,14 +476,15 @@ async function loadData(manual) {
   }
   btn.classList.remove("spin");
 }
-
+ 
 /* ---------------- AISStream ---------------- */
 function aisConnect() {
   if (!state.aisKey) return;
-  if (state.ws) { try { state.ws.close(); } catch (e) {} }
+  if (state.ws) { try { state.ws.onclose = null; state.ws.close(); } catch (e) {} }
   setDot("dotAis", "warn");
   const ws = new WebSocket("wss://stream.aisstream.io/v0/stream");
   state.ws = ws;
+  ws._t0 = Date.now(); ws._gotData = false;
   ws.onopen = () => {
     ws.send(JSON.stringify({
       APIKey: state.aisKey,
@@ -492,6 +496,8 @@ function aisConnect() {
   ws.onmessage = ev => {
     try {
       const m = JSON.parse(ev.data);
+      if (m.error) { toast("AIS: " + m.error); return; }
+      if (!ws._gotData) { ws._gotData = true; state.aisFails = 0; toast("AIS ao vivo conectado ✓"); }
       const name = norm(m.MetaData && m.MetaData.ShipName);
       if (!name || !state.ships[name]) return;
       const s = state.ships[name];
@@ -511,12 +517,20 @@ function aisConnect() {
   };
   ws.onclose = () => {
     setDot("dotAis", state.aisKey ? "err" : "");
+    // caiu logo após assinar e sem receber nada = chave recusada
+    if (!ws._gotData && Date.now() - ws._t0 < 8000) {
+      state.aisFails = (state.aisFails || 0) + 1;
+      if (state.aisFails <= 2)
+        toast("AIS recusou a chave — confira em aisstream.io e cole de novo em Ajustes");
+      if (state.aisFails >= 4) { setDot("dotAis", "err"); return; } // para de insistir
+    }
     clearTimeout(state.wsTimer);
     if (state.aisKey) state.wsTimer = setTimeout(aisConnect, 8000);
   };
   ws.onerror = () => { try { ws.close(); } catch (e) {} };
 }
-
+const cleanKey = k => (k || "").replace(/[\s"'<>#]/g, "");
+ 
 /* ---------------- GPS ---------------- */
 function startGps() {
   if (!navigator.geolocation) { setDot("dotGps", "err"); return; }
@@ -532,7 +546,7 @@ function startGps() {
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
   );
 }
-
+ 
 /* ---------------- mapa ---------------- */
 const map = L.map("map", { zoomControl: false, attributionControl: false })
   .setView([-20.345, -40.18], 12);
@@ -542,7 +556,7 @@ L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png",
 L.control.zoom({ position: "bottomright" }).addTo(map);
 const layerShips = L.layerGroup().addTo(map);
 let meMarker = null;
-
+ 
 function updateMe(center) {
   if (!state.me) return;
   const ll = [state.me.lat, state.me.lon];
@@ -552,14 +566,14 @@ function updateMe(center) {
   } else meMarker.setLatLng(ll);
   if (center) map.setView(ll, 12);
 }
-
+ 
 function shipPos(s) {
   const live = s.aisLat != null && Date.now() - (s.aisTime || 0) < 30 * 60 * 1000;
   if (live) return { lat: s.aisLat, lon: s.aisLon, live: true };
   if (s.lat != null) return { lat: s.lat, lon: s.lon, live: false };
   return null;
 }
-
+ 
 function popupHtml(s, pos, days) {
   const cg = cargoStatus(s);
   const loaFt = (s.loaM || s.aisLoaM) ? Math.round((s.loaM || s.aisLoaM) * 3.28084) + " ft" : "—";
@@ -580,11 +594,11 @@ function popupHtml(s, pos, days) {
     <div class="pp-row"><span>Carga</span><b>${cg.label}</b></div>
     <div class="pp-row"><span>Atraca</span><b>${at}</b></div>`;
 }
-
+ 
 /* ---------------- render ---------------- */
 let renderT = null;
 const renderSoon = () => { clearTimeout(renderT); renderT = setTimeout(render, 600); };
-
+ 
 function activeShips() {
   return Object.values(state.ships)
     .filter(s => state.areas[s.area])
@@ -596,10 +610,10 @@ function activeShips() {
       return { s, days, pos, distNm, brg };
     });
 }
-
+ 
 function render() {
   const list = activeShips();
-
+ 
   /* mapa */
   layerShips.clearLayers();
   list.forEach(({ s, days, pos }) => {
@@ -619,7 +633,7 @@ function render() {
     });
     mk.on("popupclose", () => { if (state.selLine) { map.removeLayer(state.selLine); state.selLine = null; } });
   });
-
+ 
   /* lista */
   const sorted = [...list].sort((a, b) =>
     state.sort === "days" ? b.days - a.days : (a.distNm ?? 9e9) - (b.distNm ?? 9e9));
@@ -655,7 +669,7 @@ function render() {
         ${at}
       </div></div>`;
   }).join("");
-
+ 
   box.querySelectorAll(".card").forEach(el => el.addEventListener("click", () => {
     const sh = state.ships[el.dataset.k];
     const pos = sh && shipPos(sh);
@@ -664,7 +678,7 @@ function render() {
     map.setView([pos.lat, pos.lon], 14);
   }));
 }
-
+ 
 /* ---------------- navegação ---------------- */
 function showView(v) {
   ["Map", "List", "Cfg"].forEach(x => {
@@ -683,19 +697,21 @@ $("btnSort").onclick = () => {
   render();
 };
 $("btnAis").onclick = () => {
-  state.aisKey = $("aisKey").value.trim();
+  state.aisKey = cleanKey($("aisKey").value);
+  $("aisKey").value = state.aisKey;
+  state.aisFails = 0;
   if (!state.aisKey) { toast("Cole a chave do AISStream"); return; }
   aisConnect(); toast("Conectando ao AIS…"); showView("Map");
 };
 ["fVix", "fRch", "fUbu"].forEach((id, i) => $(id).onchange = e => {
   state.areas[AREAS[i]] = e.target.checked; render();
 });
-
+ 
 /* ---------------- boot ---------------- */
 // Chave AIS pode vir na própria URL: https://seusite/#ais=SUACHAVE
 const hashKey = (location.hash.match(/ais=([^&]+)/) || [])[1];
-if (hashKey) state.aisKey = decodeURIComponent(hashKey);
-else if (AIS_KEY_PADRAO) state.aisKey = AIS_KEY_PADRAO;
+if (hashKey) state.aisKey = cleanKey(decodeURIComponent(hashKey));
+else if (AIS_KEY_PADRAO) state.aisKey = cleanKey(AIS_KEY_PADRAO);
 if (state.aisKey) { $("aisKey").value = state.aisKey; aisConnect(); }
 startGps();
 loadData(false);
@@ -703,3 +719,4 @@ setInterval(() => loadData(false), REFRESH_MS);
 </script>
 </body>
 </html>
+ 
