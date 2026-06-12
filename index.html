@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#081826">
+<title>Pesca nos Navios - Vix</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   NaviBait — carta náutica noturna
+   navy #081826 · ciano #37C4DD · âmbar #FFB347 · coral #FF6B5E
+   ============================================================ */
+:root{
+  --navy:#081826; --navy2:#0E2436; --panel:#10293D; --line:#1D3D57;
+  --foam:#EAF2F7; --mist:#8FAEC4; --cyan:#37C4DD; --amber:#FFB347;
+  --coral:#FF6B5E; --green:#5BD495;
+  --heat0:#5A7A93; --heat1:#37C4DD; --heat2:#FFB347; --heat3:#FF6B5E;
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--navy);color:var(--foam);
+  font-family:'Barlow',-apple-system,sans-serif;font-size:15px}
+#app{height:100%;display:flex;flex-direction:column}
+
+/* ---------- header ---------- */
+header{padding:calc(var(--sat) + 8px) 14px 8px;background:var(--navy);
+  border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;z-index:1200}
+.brand{font-family:'Barlow Condensed';font-weight:700;font-size:22px;letter-spacing:.04em;
+  color:var(--foam);line-height:1}
+.brand small{display:block;font-size:10px;font-weight:500;letter-spacing:.22em;color:var(--cyan)}
+.lights{display:flex;gap:10px;margin-left:auto;align-items:center}
+.light{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:8.5px;
+  letter-spacing:.08em;color:var(--mist);font-weight:600}
+.dot{width:9px;height:9px;border-radius:50%;background:#41566B;transition:background .3s}
+.dot.ok{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dot.warn{background:var(--amber)}
+.dot.err{background:var(--coral)}
+#btnRefresh{background:var(--panel);border:1px solid var(--line);color:var(--cyan);
+  width:38px;height:38px;border-radius:10px;font-size:17px;display:flex;align-items:center;
+  justify-content:center}
+#btnRefresh:active{background:var(--line)}
+#btnRefresh.spin svg{animation:rot 1s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.stamp{font-size:10px;color:var(--mist);text-align:right;line-height:1.3;min-width:54px}
+
+/* ---------- views ---------- */
+main{flex:1;position:relative;overflow:hidden}
+.view{position:absolute;inset:0;display:none}
+.view.active{display:block}
+#map{height:100%;background:#0A1C2C}
+.leaflet-container{font-family:'Barlow'}
+
+/* marcador-boia do navio */
+.buoy{display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6))}
+.buoy .days{font-family:'Barlow Condensed';font-weight:700;font-size:14px;color:#06121D;
+  min-width:30px;height:30px;padding:0 4px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;border:2px solid rgba(255,255,255,.85)}
+.buoy .nm{font-family:'Barlow Condensed';font-weight:600;font-size:10.5px;letter-spacing:.05em;
+  color:var(--foam);background:rgba(8,24,38,.85);padding:1px 5px;border-radius:4px;margin-top:2px;
+  white-space:nowrap}
+.buoy.live .days{border-color:#fff}
+.buoy.live .days::after{content:'';position:absolute;width:42px;height:42px;border-radius:50%;
+  border:1.5px solid currentColor;opacity:.5;animation:ping 2.4s ease-out infinite}
+@keyframes ping{0%{transform:scale(.6);opacity:.6}100%{transform:scale(1.25);opacity:0}}
+
+/* marcador do usuário */
+.me{width:18px;height:18px;border-radius:50%;background:var(--cyan);border:3px solid #fff;
+  box-shadow:0 0 0 6px rgba(55,196,221,.25)}
+
+/* popup */
+.leaflet-popup-content-wrapper{background:var(--panel);color:var(--foam);border-radius:12px;
+  border:1px solid var(--line)}
+.leaflet-popup-tip{background:var(--panel)}
+.leaflet-popup-content{margin:12px 14px;line-height:1.45;min-width:200px}
+.pp-name{font-family:'Barlow Condensed';font-weight:700;font-size:19px;letter-spacing:.02em}
+.pp-type{font-size:11px;color:var(--cyan);letter-spacing:.08em;font-weight:600;margin-bottom:6px}
+.pp-row{display:flex;justify-content:space-between;font-size:13px;padding:2px 0;
+  border-bottom:1px dashed var(--line)}
+.pp-row b{font-weight:600}
+.pp-row:last-child{border-bottom:none}
+
+/* ---------- lista ---------- */
+#viewList{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px calc(var(--sab) + 76px)}
+.listbar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.listbar h2{font-family:'Barlow Condensed';font-weight:600;font-size:16px;letter-spacing:.12em;
+  color:var(--mist)}
+.sortbtn{margin-left:auto;background:var(--panel);border:1px solid var(--line);color:var(--cyan);
+  font-family:'Barlow';font-size:12px;font-weight:600;padding:7px 12px;border-radius:8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;
+  margin-bottom:10px;display:grid;grid-template-columns:54px 1fr;gap:12px;position:relative}
+.card:active{background:var(--navy2)}
+.rank{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.rank .d{font-family:'Barlow Condensed';font-weight:700;font-size:26px;line-height:1;color:#06121D;
+  width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+  flex-direction:column}
+.rank .d small{font-size:9px;font-weight:600;letter-spacing:.1em}
+.cname{font-family:'Barlow Condensed';font-weight:700;font-size:19px;letter-spacing:.02em;
+  display:flex;align-items:center;gap:6px}
+.tag{font-size:9px;font-weight:700;letter-spacing:.08em;padding:2px 6px;border-radius:5px;
+  background:var(--line);color:var(--mist)}
+.tag.live{background:rgba(91,212,149,.18);color:var(--green)}
+.tag.loaded{background:rgba(255,107,94,.18);color:var(--coral)}
+.tag.ballast{background:rgba(55,196,221,.16);color:var(--cyan)}
+.tag.partial{background:rgba(255,179,71,.16);color:var(--amber)}
+.ctype{font-size:11px;color:var(--cyan);font-weight:600;letter-spacing:.06em;margin:1px 0 6px}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;font-size:12.5px;color:var(--mist)}
+.cgrid b{color:var(--foam);font-weight:600;font-variant-numeric:tabular-nums}
+.cberth{grid-column:1/-1;margin-top:6px;font-size:12px;padding:6px 9px;border-radius:8px;
+  background:rgba(255,179,71,.1);color:var(--amber);border:1px dashed rgba(255,179,71,.35)}
+.cberth.none{background:rgba(91,212,149,.08);color:var(--green);border-color:rgba(91,212,149,.3)}
+.empty{padding:40px 20px;text-align:center;color:var(--mist);line-height:1.6}
+
+/* ---------- config ---------- */
+#viewCfg{overflow-y:auto;padding:16px 16px calc(var(--sab) + 76px)}
+.cfgblock{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:14px;margin-bottom:12px}
+.cfgblock h3{font-family:'Barlow Condensed';font-weight:600;font-size:15px;letter-spacing:.1em;
+  color:var(--cyan);margin-bottom:8px}
+.cfgblock p{font-size:12.5px;color:var(--mist);line-height:1.5;margin-bottom:8px}
+.cfgblock input[type=text]{width:100%;background:var(--navy);border:1px solid var(--line);
+  color:var(--foam);padding:10px 12px;border-radius:9px;font-size:14px;font-family:monospace}
+.cfgblock button{margin-top:8px;background:var(--cyan);color:#06121D;border:none;font-weight:600;
+  padding:9px 16px;border-radius:9px;font-size:13px;font-family:'Barlow'}
+.switch{display:flex;align-items:center;justify-content:space-between;padding:7px 0;
+  font-size:13.5px}
+.switch input{width:20px;height:20px;accent-color:var(--cyan)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--mist)}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend i{width:12px;height:12px;border-radius:50%;display:inline-block}
+
+/* ---------- tabs ---------- */
+nav{display:flex;background:var(--navy);border-top:1px solid var(--line);
+  padding:6px 8px calc(var(--sab) + 6px);z-index:1200}
+nav button{flex:1;background:none;border:none;color:var(--mist);font-family:'Barlow';
+  font-size:10.5px;font-weight:600;letter-spacing:.08em;display:flex;flex-direction:column;
+  align-items:center;gap:3px;padding:6px 0;border-radius:10px}
+nav button svg{width:21px;height:21px}
+nav button.active{color:var(--cyan)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--sab) + 86px);
+  background:var(--panel);border:1px solid var(--line);color:var(--foam);padding:9px 16px;
+  border-radius:10px;font-size:13px;z-index:2000;opacity:0;transition:opacity .3s;pointer-events:none;
+  max-width:88%;text-align:center}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+
+<header>
+  <div class="brand">PESCA NOS NAVIOS<small>VIX · FUNDEADOS</small></div>
+  <div class="lights">
+    <div class="light"><span class="dot" id="dotGps"></span>GPS</div>
+    <div class="light"><span class="dot" id="dotPrat"></span>PRAT</div>
+    <div class="light"><span class="dot" id="dotAis"></span>AIS</div>
+  </div>
+  <div class="stamp" id="stamp">—</div>
+  <button id="btnRefresh" aria-label="Atualizar">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+  </button>
+</header>
+
+<main>
+  <div class="view active" id="viewMap"><div id="map"></div></div>
+
+  <div class="view" id="viewList">
+    <div class="listbar">
+      <h2>RANKING DE ISCAS</h2>
+      <button class="sortbtn" id="btnSort">Ordenar: tempo ▾</button>
+    </div>
+    <div id="cards"><div class="empty">Carregando navios fundeados…</div></div>
+  </div>
+
+  <div class="view" id="viewCfg">
+    <div class="cfgblock">
+      <h3>POSIÇÃO AO VIVO (AISSTREAM)</h3>
+      <p>Cole sua chave gratuita de <b>aisstream.io</b> para receber a posição AIS em tempo real e o calado atual dos navios. Sem a chave, o app usa a posição de fundeio informada pela Praticagem.</p>
+      <input type="text" id="aisKey" placeholder="Chave da API AISStream" autocomplete="off">
+      <button id="btnAis">Conectar AIS</button>
+      <p style="margin-top:8px">Dica: para não digitar a chave toda vez, edite o arquivo e cole a chave na linha <b>AIS_KEY_PADRAO</b> no topo do código.</p>
+    </div>
+    <div class="cfgblock">
+      <h3>ÁREAS DE FUNDEIO</h3>
+      <label class="switch">Tubarão e Vitória <input type="checkbox" id="fVix" checked></label>
+      <label class="switch">Barra do Riacho <input type="checkbox" id="fRch"></label>
+      <label class="switch">Ubu <input type="checkbox" id="fUbu"></label>
+    </div>
+    <div class="cfgblock">
+      <h3>LEGENDA — TEMPO DE FUNDEIO</h3>
+      <div class="legend">
+        <span><i style="background:var(--heat0)"></i>&lt; 1 dia</span>
+        <span><i style="background:var(--heat1)"></i>1–3 dias</span>
+        <span><i style="background:var(--heat2)"></i>3–7 dias</span>
+        <span><i style="background:var(--heat3)"></i>7+ dias 🎣</span>
+      </div>
+      <p style="margin-top:10px">Quanto mais tempo fundeado, maior a chance de sardinha e sarda agregadas no casco. Anel pulsando = posição AIS ao vivo.</p>
+    </div>
+    <div class="cfgblock">
+      <h3>FONTES</h3>
+      <p>Praticagem Espírito Santo (fundeados e manobras previstas) — atualização automática a cada 10 min. AISStream.io para posições ao vivo. Condição de carga estimada pelo calado (proa/popa e relação calado/LOA).</p>
+    </div>
+  </div>
+</main>
+
+<nav>
+  <button id="tabMap" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21"/><line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/></svg>
+    MAPA</button>
+  <button id="tabList">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1.4"/><circle cx="3.5" cy="12" r="1.4"/><circle cx="3.5" cy="18" r="1.4"/></svg>
+    LISTA</button>
+  <button id="tabCfg">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    AJUSTES</button>
+</nav>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   Pesca nos Navios - Vix — iscas nos navios fundeados
+   Dados: Praticagem ES (fundeados.asp / previstas.asp) + AISStream.io
+   ===================================================================== */
+
+// >>> Cole aqui sua chave do aisstream.io para conexão automática <<<
+const AIS_KEY_PADRAO = "";
+
+const URL_FUNDEADOS = "https://www.praticagem.org.br/asp/fundeados.asp";
+const URL_PREVISTAS = "https://www.praticagem.org.br/asp/previstas.asp";
+// Fonte primária: r.jina.ai (retorna a tabela em markdown, testado e funcionando)
+const JINA = u => "https://r.jina.ai/" + u + (u.includes("?") ? "&" : "?") + "_=" + Date.now();
+// Fallbacks (HTML bruto via proxy CORS)
+const PROXIES = [
+  u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u + "?_=" + Date.now()),
+  u => "https://corsproxy.io/?url=" + encodeURIComponent(u)
+];
+const REFRESH_MS = 10 * 60 * 1000;
+const HEAT = ["#5A7A93", "#37C4DD", "#FFB347", "#FF6B5E"];
+
+const TIPOS = {
+  BC: "Graneleiro", BO: "Mineraleiro", GO: "Carga geral", CC: "Porta-contêiner",
+  TR: "Petroleiro", TP: "Tanque (produtos)", TW: "Tanque químico", TG: "Gaseiro",
+  RV: "Ro-Ro veículos", RP: "Ro-Ro", OQ: "Apoio offshore", OX: "Apoio offshore"
+};
+
+const state = {
+  ships: {},          // key: nome normalizado
+  me: null,           // {lat, lon}
+  sort: "days",
+  areas: { "TUBARAO E VITORIA": true, "BARRA DO RIACHO": false, "UBU": false },
+  ws: null, wsTimer: null, aisKey: AIS_KEY_PADRAO,
+  selLine: null
+};
+
+/* ---------------- util ---------------- */
+const $ = id => document.getElementById(id);
+const norm = s => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+const toast = m => { const t = $("toast"); t.textContent = m; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 3200); };
+const setDot = (id, cls) => { const d = $(id); d.className = "dot" + (cls ? " " + cls : ""); };
+
+function parseCoord(txt) {           // "20 23,63 S" → -20.3938
+  const m = (txt || "").trim().match(/(\d+)\s+(\d+)[,.](\d+)\s*([NSEW])/i);
+  if (!m) return null;
+  let v = parseInt(m[1]) + parseFloat(m[2] + "." + m[3]) / 60;
+  if (/[SW]/i.test(m[4])) v = -v;
+  return v;
+}
+function parseDT(d, h) {             // "12/06/2026","07:30" → Date
+  const m = (d || "").match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (!m) return null;
+  const t = (h || "00:00").match(/(\d{1,2}):(\d{2})/) || [0, 0, 0];
+  return new Date(+m[3], +m[2] - 1, +m[1], +t[1] || 0, +t[2] || 0);
+}
+function haversineNm(a, b) {
+  const R = 3440.065, rad = x => x * Math.PI / 180;
+  const dLa = rad(b.lat - a.lat), dLo = rad(b.lon - a.lon);
+  const h = Math.sin(dLa/2)**2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLo/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function bearing(a, b) {
+  const rad = x => x * Math.PI / 180;
+  const y = Math.sin(rad(b.lon - a.lon)) * Math.cos(rad(b.lat));
+  const x = Math.cos(rad(a.lat)) * Math.sin(rad(b.lat)) -
+            Math.sin(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(rad(b.lon - a.lon));
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+const CARD = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const cardinal = b => CARD[Math.round(b / 22.5) % 16];
+const heatColor = d => d < 1 ? HEAT[0] : d < 3 ? HEAT[1] : d < 7 ? HEAT[2] : HEAT[3];
+const fmtDays = d => d < 1 ? Math.round(d * 24) + "h" : (d < 10 ? d.toFixed(1) : Math.round(d)) + "d";
+const shipType = code => { const m = (code || "").match(/[A-Z]{2}$/); return (m && TIPOS[m[0]]) || code || "—"; };
+
+function cargoStatus(s) {            // → {label, cls}
+  const loa = s.loaM || s.aisLoaM;
+  let dr = s.aisDraught || null;
+  if (!dr && s.calProa && s.calPopa) dr = (s.calProa + s.calPopa) / 2;
+  if (!dr || !loa) return { label: "—", cls: "" };
+  const trim = (s.calPopa && s.calProa) ? s.calPopa - s.calProa : 0;
+  const r = dr / loa;
+  if (r >= 0.052) return { label: "CARREGADO", cls: "loaded" };
+  if (r <= 0.038 || trim >= 1.5) return { label: "LASTRO (VAZIO)", cls: "ballast" };
+  return { label: "PARCIAL", cls: "partial" };
+}
+
+/* ---------------- fetch (jina primário, proxies fallback) ---------------- */
+async function fetchTimeout(u, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try { return await fetch(u, { signal: ctl.signal }); }
+  finally { clearTimeout(t); }
+}
+async function fetchAny(url) {
+  try {
+    const r = await fetchTimeout(JINA(url), 18000);
+    if (r.ok) {
+      const t = await r.text();
+      if (t.includes("|")) return { kind: "md", text: t };
+    }
+  } catch (e) { /* tenta fallback */ }
+  for (const p of PROXIES) {
+    try {
+      const r = await fetchTimeout(p(url), 12000);
+      if (r.ok) { const t = await r.text(); if (t.length > 200) return { kind: "html", text: t }; }
+    } catch (e) { /* próximo */ }
+  }
+  throw new Error("fontes indisponíveis");
+}
+
+/* ---------------- parsers Praticagem ---------------- */
+const AREAS = ["TUBARAO E VITORIA", "BARRA DO RIACHO", "UBU"];
+const RE_DATE = /^\d{2}\/\d{2}\/\d{4}$/;
+
+/* --- formato markdown (r.jina.ai) --- */
+function mdRows(txt) {
+  return txt.split("\n").map(l => l.trim()).filter(l => l.startsWith("|"))
+    .map(l => l.slice(1).replace(/\|\s*$/, "").split("|").map(c => c.trim()));
+}
+function mdName(cell) {
+  const m = (cell || "").match(/\[([^\]]+)\]/);
+  const imo = ((cell || "").match(/imo:(\d+)/) || [])[1];
+  return { nome: m ? m[1] : (cell || ""), imo };
+}
+function parseFundeadosMd(txt) {
+  const out = []; let area = AREAS[0];
+  for (const c of mdRows(txt)) {
+    const joined = c.join(" ").toUpperCase();
+    const a = AREAS.find(x => joined.includes(x));
+    if (a && !RE_DATE.test(c[0] || "")) { area = a; continue; }
+    if (!RE_DATE.test(c[0] || "")) continue;
+    const { nome, imo } = mdName(c[4]);
+    out.push({
+      area, nome, key: norm(nome),
+      fundeio: parseDT(c[0], c[1]),
+      lat: parseCoord(c[2]), lon: parseCoord(c[3]),
+      tipoCode: c[5] || "", agencia: c[6] || "",
+      origem: c[7] || "", destino: c[8] || "", imo
+    });
+  }
+  return out;
+}
+function parsePrevistasMd(txt) {
+  const out = [];
+  for (const c of mdRows(txt)) {
+    const di = c.findIndex(x => RE_DATE.test(x));
+    if (di < 0) continue;
+    const { nome } = mdName(c[0]);
+    if (!nome || /^(NOME|NAVIO|DATA)$/i.test(nome)) continue;
+    const num = x => { const v = parseFloat((x || "").replace(",", ".")); return isNaN(v) ? null : v; };
+    out.push({
+      key: norm(nome), nome,
+      loaM: num(c[2]),
+      calProa: num(c[di - 2]), calPopa: num(c[di - 1]),
+      dt: parseDT(c[di], c[di + 1]),
+      manobra: (c[di + 2] || "").toUpperCase(),
+      porto: c[di + 3] || "", berco: c[di + 4] || "",
+      situacao: c[c.length - 1] || ""
+    });
+  }
+  return out;
+}
+
+/* --- formato HTML (proxies de fallback) --- */
+
+function parseFundeados(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const out = []; let area = AREAS[0];
+  doc.querySelectorAll("tr").forEach(tr => {
+    const c = [...tr.cells].map(td => td.innerText.trim());
+    const joined = c.join(" ").toUpperCase();
+    const a = AREAS.find(x => joined.includes(x));
+    if (a && !RE_DATE.test(c[0] || "")) { area = a; return; }
+    if (!RE_DATE.test(c[0] || "")) return;
+    const lat = parseCoord(c[2]), lon = parseCoord(c[3]);
+    const link = tr.querySelector("a[href*='marinetraffic']");
+    const imo = link ? (link.href.match(/imo:(\d+)/) || [])[1] : null;
+    out.push({
+      area, nome: c[4] || "?", key: norm(c[4]),
+      fundeio: parseDT(c[0], c[1]), lat, lon,
+      tipoCode: c[5] || "", agencia: c[6] || "",
+      origem: c[7] || "", destino: c[8] || "", imo
+    });
+  });
+  return out;
+}
+
+function parsePrevistas(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const out = [];
+  doc.querySelectorAll("tr").forEach(tr => {
+    const c = [...tr.cells].map(td => td.innerText.trim());
+    const di = c.findIndex(x => RE_DATE.test(x));
+    if (di < 0 || !c[0] || /^(NOME|NAVIO)$/i.test(c[0])) return;
+    const num = x => { const v = parseFloat((x || "").replace(",", ".")); return isNaN(v) ? null : v; };
+    out.push({
+      key: norm(c[0]), nome: c[0],
+      loaM: num(c[2]),
+      calProa: num(c[di - 2]), calPopa: num(c[di - 1]),
+      dt: parseDT(c[di], c[di + 1]),
+      manobra: (c[di + 2] || "").toUpperCase(),
+      porto: c[di + 3] || "", berco: c[di + 4] || "",
+      situacao: c[c.length - 1] || ""
+    });
+  });
+  return out;
+}
+
+/* ---------------- carga de dados ---------------- */
+async function loadData(manual) {
+  const btn = $("btnRefresh"); btn.classList.add("spin");
+  setDot("dotPrat", "warn");
+  try {
+    const [rf, rp] = await Promise.all([fetchAny(URL_FUNDEADOS), fetchAny(URL_PREVISTAS)]);
+    const fund = rf.kind === "md" ? parseFundeadosMd(rf.text) : parseFundeados(rf.text);
+    const prev = rp.kind === "md" ? parsePrevistasMd(rp.text) : parsePrevistas(rp.text);
+    const prevByKey = {};
+    prev.forEach(p => {
+      if (!prevByKey[p.key]) prevByKey[p.key] = [];
+      prevByKey[p.key].push(p);
+    });
+
+    const seen = new Set();
+    fund.forEach(f => {
+      seen.add(f.key);
+      const s = state.ships[f.key] || (state.ships[f.key] = {});
+      Object.assign(s, f);
+      const ent = (prevByKey[f.key] || []).find(p => p.manobra === "ENTRADA");
+      const any = (prevByKey[f.key] || [])[0];
+      const src = ent || any;
+      if (src) {
+        s.loaM = src.loaM || s.loaM;
+        s.calProa = src.calProa; s.calPopa = src.calPopa;
+      }
+      s.atraca = ent ? { dt: ent.dt, porto: ent.porto, berco: ent.berco, sit: ent.situacao } : null;
+    });
+    // remove navios que saíram do fundeio
+    Object.keys(state.ships).forEach(k => { if (!seen.has(k)) delete state.ships[k]; });
+
+    setDot("dotPrat", "ok");
+    $("stamp").innerHTML = "Praticagem<br>" +
+      new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    if (manual) toast(fund.length + " navios fundeados carregados");
+    render();
+  } catch (e) {
+    setDot("dotPrat", "err");
+    toast("Falha ao ler a Praticagem — verifique o sinal e tente de novo");
+  }
+  btn.classList.remove("spin");
+}
+
+/* ---------------- AISStream ---------------- */
+function aisConnect() {
+  if (!state.aisKey) return;
+  if (state.ws) { try { state.ws.close(); } catch (e) {} }
+  setDot("dotAis", "warn");
+  const ws = new WebSocket("wss://stream.aisstream.io/v0/stream");
+  state.ws = ws;
+  ws.onopen = () => {
+    ws.send(JSON.stringify({
+      APIKey: state.aisKey,
+      BoundingBoxes: [[[-21.05, -40.65], [-20.00, -39.75]]],
+      FilterMessageTypes: ["PositionReport", "ShipStaticData"]
+    }));
+    setDot("dotAis", "ok");
+  };
+  ws.onmessage = ev => {
+    try {
+      const m = JSON.parse(ev.data);
+      const name = norm(m.MetaData && m.MetaData.ShipName);
+      if (!name || !state.ships[name]) return;
+      const s = state.ships[name];
+      if (m.MessageType === "PositionReport") {
+        const p = m.Message.PositionReport;
+        s.aisLat = p.Latitude; s.aisLon = p.Longitude; s.aisTime = Date.now();
+      } else if (m.MessageType === "ShipStaticData") {
+        const d = m.Message.ShipStaticData;
+        if (d.MaximumStaticDraught > 0) s.aisDraught = d.MaximumStaticDraught;
+        if (d.Dimension) {
+          const L = (d.Dimension.A || 0) + (d.Dimension.B || 0);
+          if (L > 20) s.aisLoaM = L;
+        }
+      }
+      renderSoon();
+    } catch (e) {}
+  };
+  ws.onclose = () => {
+    setDot("dotAis", state.aisKey ? "err" : "");
+    clearTimeout(state.wsTimer);
+    if (state.aisKey) state.wsTimer = setTimeout(aisConnect, 8000);
+  };
+  ws.onerror = () => { try { ws.close(); } catch (e) {} };
+}
+
+/* ---------------- GPS ---------------- */
+function startGps() {
+  if (!navigator.geolocation) { setDot("dotGps", "err"); return; }
+  navigator.geolocation.watchPosition(
+    p => {
+      const first = !state.me;
+      state.me = { lat: p.coords.latitude, lon: p.coords.longitude };
+      setDot("dotGps", "ok");
+      updateMe(first);
+      renderSoon();
+    },
+    () => setDot("dotGps", "err"),
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+  );
+}
+
+/* ---------------- mapa ---------------- */
+const map = L.map("map", { zoomControl: false, attributionControl: false })
+  .setView([-20.345, -40.18], 12);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(map);
+L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png",
+  { maxZoom: 18, opacity: .85 }).addTo(map);
+L.control.zoom({ position: "bottomright" }).addTo(map);
+const layerShips = L.layerGroup().addTo(map);
+let meMarker = null;
+
+function updateMe(center) {
+  if (!state.me) return;
+  const ll = [state.me.lat, state.me.lon];
+  if (!meMarker) {
+    meMarker = L.marker(ll, { icon: L.divIcon({ className: "", html: '<div class="me"></div>',
+      iconSize: [18, 18], iconAnchor: [9, 9] }), zIndexOffset: 1000 }).addTo(map);
+  } else meMarker.setLatLng(ll);
+  if (center) map.setView(ll, 12);
+}
+
+function shipPos(s) {
+  const live = s.aisLat != null && Date.now() - (s.aisTime || 0) < 30 * 60 * 1000;
+  if (live) return { lat: s.aisLat, lon: s.aisLon, live: true };
+  if (s.lat != null) return { lat: s.lat, lon: s.lon, live: false };
+  return null;
+}
+
+function popupHtml(s, pos, days) {
+  const cg = cargoStatus(s);
+  const loaFt = (s.loaM || s.aisLoaM) ? Math.round((s.loaM || s.aisLoaM) * 3.28084) + " ft" : "—";
+  let dist = "—";
+  if (state.me && pos) {
+    const d = haversineNm(state.me, pos), b = bearing(state.me, pos);
+    dist = d.toFixed(1) + " nm · " + Math.round(b) + "° " + cardinal(b);
+  }
+  const at = s.atraca && s.atraca.dt
+    ? s.atraca.dt.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit",
+        hour: "2-digit", minute: "2-digit" }) + " (" + s.atraca.porto + ")"
+    : "sem previsão";
+  return `<div class="pp-name">${s.nome}</div>
+    <div class="pp-type">${shipType(s.tipoCode)}${pos && pos.live ? " · AIS AO VIVO" : ""}</div>
+    <div class="pp-row"><span>Fundeado há</span><b>${fmtDays(days)}</b></div>
+    <div class="pp-row"><span>Distância</span><b>${dist}</b></div>
+    <div class="pp-row"><span>LOA</span><b>${loaFt}</b></div>
+    <div class="pp-row"><span>Carga</span><b>${cg.label}</b></div>
+    <div class="pp-row"><span>Atraca</span><b>${at}</b></div>`;
+}
+
+/* ---------------- render ---------------- */
+let renderT = null;
+const renderSoon = () => { clearTimeout(renderT); renderT = setTimeout(render, 600); };
+
+function activeShips() {
+  return Object.values(state.ships)
+    .filter(s => state.areas[s.area])
+    .map(s => {
+      const days = s.fundeio ? (Date.now() - s.fundeio) / 86400000 : 0;
+      const pos = shipPos(s);
+      let distNm = null, brg = null;
+      if (state.me && pos) { distNm = haversineNm(state.me, pos); brg = bearing(state.me, pos); }
+      return { s, days, pos, distNm, brg };
+    });
+}
+
+function render() {
+  const list = activeShips();
+
+  /* mapa */
+  layerShips.clearLayers();
+  list.forEach(({ s, days, pos }) => {
+    if (!pos) return;
+    const color = heatColor(days);
+    const icon = L.divIcon({ className: "", iconSize: [60, 48], iconAnchor: [30, 24],
+      html: `<div class="buoy${pos.live ? " live" : ""}" style="color:${color}">
+        <div class="days" style="background:${color};position:relative">${fmtDays(days)}</div>
+        <div class="nm">${s.nome}</div></div>` });
+    const mk = L.marker([pos.lat, pos.lon], { icon }).addTo(layerShips);
+    mk.bindPopup(() => popupHtml(s, pos, days), { closeButton: false });
+    mk.on("popupopen", () => {
+      if (state.selLine) map.removeLayer(state.selLine);
+      if (state.me) state.selLine = L.polyline(
+        [[state.me.lat, state.me.lon], [pos.lat, pos.lon]],
+        { color: "#37C4DD", weight: 2, dashArray: "6 6", opacity: .8 }).addTo(map);
+    });
+    mk.on("popupclose", () => { if (state.selLine) { map.removeLayer(state.selLine); state.selLine = null; } });
+  });
+
+  /* lista */
+  const sorted = [...list].sort((a, b) =>
+    state.sort === "days" ? b.days - a.days : (a.distNm ?? 9e9) - (b.distNm ?? 9e9));
+  const box = $("cards");
+  if (!sorted.length) {
+    box.innerHTML = '<div class="empty">Nenhum navio fundeado nas áreas selecionadas.<br>Confira os filtros em Ajustes ou toque em atualizar.</div>';
+    return;
+  }
+  box.innerHTML = sorted.map(({ s, days, pos, distNm, brg }) => {
+    const color = heatColor(days);
+    const cg = cargoStatus(s);
+    const loaFt = (s.loaM || s.aisLoaM) ? Math.round((s.loaM || s.aisLoaM) * 3.28084) + " ft" : "—";
+    const dist = distNm != null
+      ? distNm.toFixed(1) + " nm <b style='color:var(--cyan)'>" + Math.round(brg) + "° " + cardinal(brg) + "</b>"
+      : "aguardando GPS";
+    const at = s.atraca && s.atraca.dt
+      ? `<div class="cberth">⚓ Atraca ${s.atraca.dt.toLocaleString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · ${s.atraca.porto} ${s.atraca.berco} · ${s.atraca.sit}</div>`
+      : `<div class="cberth none">Sem previsão de atracação — deve ficar fundeado 🎣</div>`;
+    return `<div class="card" data-k="${s.key}">
+      <div class="rank"><div class="d" style="background:${color}">${fmtDays(days).replace(/([dh])/,"<small>$1</small>")}</div></div>
+      <div>
+        <div class="cname">${s.nome}
+          ${pos && pos.live ? '<span class="tag live">AIS</span>' : ""}
+          ${cg.label !== "—" ? `<span class="tag ${cg.cls}">${cg.label}</span>` : ""}
+        </div>
+        <div class="ctype">${shipType(s.tipoCode)} · ${s.area === "TUBARAO E VITORIA" ? "VIX/TUB" : s.area}</div>
+        <div class="cgrid">
+          <span>Distância <b>${dist}</b></span>
+          <span>LOA <b>${loaFt}</b></span>
+          <span>De <b>${(s.origem || "—").split("/")[0]}</b></span>
+          <span>Para <b>${(s.destino || "—").split("/")[0]}</b></span>
+        </div>
+        ${at}
+      </div></div>`;
+  }).join("");
+
+  box.querySelectorAll(".card").forEach(el => el.addEventListener("click", () => {
+    const sh = state.ships[el.dataset.k];
+    const pos = sh && shipPos(sh);
+    if (!pos) return;
+    showView("Map");
+    map.setView([pos.lat, pos.lon], 14);
+  }));
+}
+
+/* ---------------- navegação ---------------- */
+function showView(v) {
+  ["Map", "List", "Cfg"].forEach(x => {
+    $("view" + x).classList.toggle("active", x === v);
+    $("tab" + x).classList.toggle("active", x === v);
+  });
+  if (v === "Map") setTimeout(() => map.invalidateSize(), 60);
+}
+$("tabMap").onclick = () => showView("Map");
+$("tabList").onclick = () => showView("List");
+$("tabCfg").onclick = () => showView("Cfg");
+$("btnRefresh").onclick = () => loadData(true);
+$("btnSort").onclick = () => {
+  state.sort = state.sort === "days" ? "dist" : "days";
+  $("btnSort").textContent = state.sort === "days" ? "Ordenar: tempo ▾" : "Ordenar: distância ▾";
+  render();
+};
+$("btnAis").onclick = () => {
+  state.aisKey = $("aisKey").value.trim();
+  if (!state.aisKey) { toast("Cole a chave do AISStream"); return; }
+  aisConnect(); toast("Conectando ao AIS…"); showView("Map");
+};
+["fVix", "fRch", "fUbu"].forEach((id, i) => $(id).onchange = e => {
+  state.areas[AREAS[i]] = e.target.checked; render();
+});
+
+/* ---------------- boot ---------------- */
+// Chave AIS pode vir na própria URL: https://seusite/#ais=SUACHAVE
+const hashKey = (location.hash.match(/ais=([^&]+)/) || [])[1];
+if (hashKey) state.aisKey = decodeURIComponent(hashKey);
+else if (AIS_KEY_PADRAO) state.aisKey = AIS_KEY_PADRAO;
+if (state.aisKey) { $("aisKey").value = state.aisKey; aisConnect(); }
+startGps();
+loadData(false);
+setInterval(() => loadData(false), REFRESH_MS);
+</script>
+</body>
+</html>
