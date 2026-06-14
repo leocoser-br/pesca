@@ -255,7 +255,8 @@ const TIPOS = {
 };
 
 const state = {
-  ships: {},          // key: nome normalizado
+  ships: {},          // navios da Praticagem (key: nome normalizado)
+  ais: {},            // navios do AIS ao vivo (key: MMSI)
   me: null,           // {lat, lon}
   sort: "days",
   areas: { "TUBARAO E VITORIA": true, "BARRA DO RIACHO": false, "UBU": false },
@@ -269,6 +270,33 @@ const norm = s => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 const toast = m => { const t = $("toast"); t.textContent = m; t.classList.add("show");
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 3200); };
 const setDot = (id, cls) => { const d = $(id); d.className = "dot" + (cls ? " " + cls : ""); };
+
+/* similaridade de nomes (Levenshtein normalizado 0..1) */
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    let cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+function nameSim(a, b) {               // 0..1 (1 = idêntico)
+  a = norm(a); b = norm(b);
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if ((a.includes(b) || b.includes(a)) && Math.min(a.length, b.length) >= 4) return 0.95;
+  const d = levenshtein(a, b);
+  return 1 - d / Math.max(a.length, b.length);
+}
+const SIM_EXATO = 0.999;   // idêntico
+const SIM_APROX = 0.80;    // limiar de match aproximado
 
 function parseCoord(txt) {           // "20 23,63 S" → -20.3938
   const m = (txt || "").trim().match(/(\d+)\s+(\d+)[,.](\d+)\s*([NSEW])/i);
@@ -301,18 +329,6 @@ const cardinal = b => CARD[Math.round(b / 22.5) % 16];
 const heatColor = d => d < 1 ? HEAT[0] : d < 3 ? HEAT[1] : d < 7 ? HEAT[2] : HEAT[3];
 const fmtDays = d => d < 1 ? Math.round(d * 24) + "h" : (d < 10 ? d.toFixed(1) : Math.round(d)) + "d";
 const shipType = code => { const m = (code || "").match(/[A-Z]{2}$/); return (m && TIPOS[m[0]]) || code || "—"; };
-
-function cargoStatus(s) {            // → {label, cls}
-  const loa = s.loaM || s.aisLoaM;
-  let dr = s.aisDraught || null;
-  if (!dr && s.calProa && s.calPopa) dr = (s.calProa + s.calPopa) / 2;
-  if (!dr || !loa) return { label: "—", cls: "" };
-  const trim = (s.calPopa && s.calProa) ? s.calPopa - s.calProa : 0;
-  const r = dr / loa;
-  if (r >= 0.052) return { label: "CARREGADO", cls: "loaded" };
-  if (r <= 0.038 || trim >= 1.5) return { label: "LASTRO (VAZIO)", cls: "ballast" };
-  return { label: "PARCIAL", cls: "partial" };
-}
 
 /* ---------------- fetch (jina primário, proxies fallback) ---------------- */
 async function fetchTimeout(u, ms) {
@@ -464,8 +480,12 @@ async function loadData(manual) {
       }
       s.atraca = ent ? { dt: ent.dt, porto: ent.porto, berco: ent.berco, sit: ent.situacao } : null;
     });
-    // remove navios que saíram do fundeio
+    // remove da Praticagem os navios que saíram do fundeio
     Object.keys(state.ships).forEach(k => { if (!seen.has(k)) delete state.ships[k]; });
+
+    // poda navios AIS silenciosos há mais de 1h
+    const cut = Date.now() - 60 * 60 * 1000;
+    Object.keys(state.ais).forEach(k => { if ((state.ais[k].t || 0) < cut) delete state.ais[k]; });
 
     setDot("dotPrat", "ok");
     $("stamp").innerHTML = "Praticagem<br>" +
@@ -500,19 +520,25 @@ function aisConnect() {
       const m = JSON.parse(ev.data);
       if (m.error) { toast("AIS: " + m.error); return; }
       if (!ws._gotData) { ws._gotData = true; state.aisFails = 0; toast("AIS ao vivo conectado ✓"); }
-      const name = norm(m.MetaData && m.MetaData.ShipName);
-      if (!name || !state.ships[name]) return;
-      const s = state.ships[name];
+      const meta = m.MetaData || {};
+      const mmsi = meta.MMSI || (m.Message && m.Message.PositionReport && m.Message.PositionReport.UserID);
+      if (!mmsi) return;
+      const a = state.ais[mmsi] || (state.ais[mmsi] = { mmsi });
+      if (meta.ShipName) a.name = meta.ShipName.trim();
       if (m.MessageType === "PositionReport") {
         const p = m.Message.PositionReport;
-        s.aisLat = p.Latitude; s.aisLon = p.Longitude; s.aisTime = Date.now();
+        a.lat = p.Latitude; a.lon = p.Longitude;
+        a.sog = p.Sog;                 // velocidade sobre o fundo (nós)
+        a.heading = (p.TrueHeading != null && p.TrueHeading < 360) ? p.TrueHeading : p.Cog;
+        a.t = Date.now();
       } else if (m.MessageType === "ShipStaticData") {
         const d = m.Message.ShipStaticData;
-        if (d.MaximumStaticDraught > 0) s.aisDraught = d.MaximumStaticDraught;
+        if (d.MaximumStaticDraught > 0) a.draught = d.MaximumStaticDraught;
         if (d.Dimension) {
           const L = (d.Dimension.A || 0) + (d.Dimension.B || 0);
-          if (L > 20) s.aisLoaM = L;
+          if (L > 20) a.loaM = L;
         }
+        if (d.Type) a.aisType = d.Type;
       }
       renderSoon();
     } catch (e) {}
@@ -581,23 +607,7 @@ const TERMINAIS = [        // descartar navios atracados/coladas nestes pontos
 ];
 const AIS_LIVE_MS = 30 * 60 * 1000;     // < 30 min = "ao vivo"
 const AIS_STALE_MS = 24 * 60 * 60 * 1000; // até 24 h ainda mostra "AIS há Xh"
-
-// retorna posição + selo de confiança. Sem chave AIS, cai para Praticagem (aprox.)
-function shipPos(s) {
-  const hasAis = s.aisLat != null && s.aisLon != null;
-  if (hasAis) {
-    const age = Date.now() - (s.aisTime || 0);
-    let conf;
-    if (age < AIS_LIVE_MS) conf = { tier: "live", label: "AO VIVO" };
-    else if (age < AIS_STALE_MS) conf = { tier: "aged", label: "AIS há " + Math.round(age / 3600000) + "h" };
-    else conf = { tier: "old", label: "AIS +" + Math.round(age / 86400000) + "d" };
-    return { lat: s.aisLat, lon: s.aisLon, live: conf.tier === "live", conf, src: "ais" };
-  }
-  // sem AIS para este navio: só usa Praticagem se o app estiver SEM chave
-  if (!state.aisKey && s.lat != null)
-    return { lat: s.lat, lon: s.lon, live: false, conf: { tier: "prat", label: "PRATICAGEM (aprox.)" }, src: "prat" };
-  return null;  // com chave ligada, navio sem AIS não vai ao mapa
-}
+const SOG_PARADO = 0.5;                  // <= 0,5 nó = navio parado/fundeado
 
 // filtro de range + exclusão de terminais
 function inRange(pos) {
@@ -607,42 +617,126 @@ function inRange(pos) {
   return true;
 }
 
-function popupHtml(s, pos, days) {
-  const cg = cargoStatus(s);
-  const loaFt = (s.loaM || s.aisLoaM) ? Math.round((s.loaM || s.aisLoaM) * 3.28084) + " ft" : "—";
+function confFromAge(age) {
+  if (age < AIS_LIVE_MS) return { tier: "live", label: "AO VIVO" };
+  if (age < AIS_STALE_MS) return { tier: "aged", label: "AIS há " + Math.round(age / 3600000) + "h" };
+  return { tier: "old", label: "AIS +" + Math.round(age / 86400000) + "d" };
+}
+
+/* Constrói a lista de navios a exibir.
+   COM chave: AIS é a lista mestra; casa com a Praticagem 1:1 por nome.
+   SEM chave: usa a Praticagem com posição aproximada. */
+function activeShips() {
+  const hasKey = !!state.aisKey;
+
+  if (!hasKey) {
+    return Object.values(state.ships)
+      .filter(s => state.areas[s.area] && s.lat != null)
+      .map(s => {
+        const pos = { lat: s.lat, lon: s.lon };
+        if (!inRange(pos)) return null;
+        const days = s.fundeio ? (Date.now() - s.fundeio) / 86400000 : null;
+        let distNm = null, brg = null;
+        if (state.me) { distNm = haversineNm(state.me, pos); brg = bearing(state.me, pos); }
+        return {
+          name: s.nome, pos, live: false,
+          conf: { tier: "prat", label: "PRATICAGEM (aprox.)" },
+          days, daysKnown: days != null, match: null,
+          prat: s, distNm, brg
+        };
+      }).filter(Boolean);
+  }
+
+  // --- COM chave: AIS manda ---
+  // 1) candidatos AIS: parados, no range, fora dos terminais
+  const cands = Object.values(state.ais).filter(a => {
+    if (a.lat == null || a.sog == null) return false;
+    if (a.sog > SOG_PARADO) return false;          // só parados
+    return inRange({ lat: a.lat, lon: a.lon });
+  });
+
+  // 2) pool da Praticagem nas áreas ativas
+  const pratPool = Object.values(state.ships).filter(s => state.areas[s.area]);
+
+  // 3) melhor par (AIS, Praticagem) por similaridade — guloso, 1:1
+  const pairs = [];
+  cands.forEach(a => pratPool.forEach(p => {
+    const sim = nameSim(a.name, p.nome);
+    if (sim >= SIM_APROX) pairs.push({ a, p, sim });
+  }));
+  pairs.sort((x, y) => y.sim - x.sim);
+  const usedPrat = new Set(), matchOf = new Map();
+  pairs.forEach(({ a, p, sim }) => {
+    if (matchOf.has(a.mmsi)) return;       // AIS já casado
+    if (usedPrat.has(p.key)) return;       // Praticagem já usada (exclusividade 1:1)
+    matchOf.set(a.mmsi, { p, sim });
+    usedPrat.add(p.key);
+  });
+
+  // 4) monta as entradas finais
+  return cands.map(a => {
+    const pos = { lat: a.lat, lon: a.lon };
+    const age = Date.now() - (a.t || 0);
+    const conf = confFromAge(age);
+    const mt = matchOf.get(a.mmsi);
+    const p = mt ? mt.p : null;
+    const exato = mt ? mt.sim >= SIM_EXATO : false;
+    const days = p && p.fundeio ? (Date.now() - p.fundeio) / 86400000 : null;
+    let distNm = null, brg = null;
+    if (state.me) { distNm = haversineNm(state.me, pos); brg = bearing(state.me, pos); }
+    return {
+      name: a.name || ("MMSI " + a.mmsi), pos, live: conf.tier === "live", conf,
+      days, daysKnown: !!p,
+      match: p ? { exato, pratName: p.nome, sim: mt.sim } : null,
+      ais: a, prat: p, distNm, brg
+    };
+  });
+}
+
+// LOA em pés a partir de AIS (preferido) ou Praticagem
+function entryLoaFt(e) {
+  const m = (e.ais && e.ais.loaM) || (e.prat && e.prat.loaM);
+  return m ? Math.round(m * 3.28084) + " ft" : "—";
+}
+// carga estimada: usa calado AIS ou calados da Praticagem
+function entryCargo(e) {
+  const loa = (e.ais && e.ais.loaM) || (e.prat && e.prat.loaM);
+  let dr = (e.ais && e.ais.draught) || null;
+  const pp = e.prat;
+  if (!dr && pp && pp.calProa && pp.calPopa) dr = (pp.calProa + pp.calPopa) / 2;
+  if (!dr || !loa) return { label: "—", cls: "" };
+  const trim = (pp && pp.calPopa && pp.calProa) ? pp.calPopa - pp.calProa : 0;
+  const r = dr / loa;
+  if (r >= 0.052) return { label: "CARREGADO", cls: "loaded" };
+  if (r <= 0.038 || trim >= 1.5) return { label: "LASTRO (VAZIO)", cls: "ballast" };
+  return { label: "PARCIAL", cls: "partial" };
+}
+const daysLabel = e => e.daysKnown ? fmtDays(e.days) : "?";
+const entryType = e => e.prat ? shipType(e.prat.tipoCode) : "Navio (AIS)";
+
+function popupHtml(e) {
+  const cg = entryCargo(e);
+  const loaFt = entryLoaFt(e);
   let dist = "—";
-  if (state.me && pos) {
-    const d = haversineNm(state.me, pos), b = bearing(state.me, pos);
+  if (state.me) {
+    const d = haversineNm(state.me, e.pos), b = bearing(state.me, e.pos);
     dist = d.toFixed(1) + " nm · " + Math.round(b) + "° " + cardinal(b);
   }
-  const at = s.atraca && s.atraca.dt
-    ? s.atraca.dt.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit",
-        hour: "2-digit", minute: "2-digit" }) + " (" + s.atraca.porto + ")"
+  const p = e.prat;
+  const at = p && p.atraca && p.atraca.dt
+    ? p.atraca.dt.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit",
+        hour: "2-digit", minute: "2-digit" }) + " (" + p.atraca.porto + ")"
     : "sem previsão";
-  return `<div class="pp-name">${s.nome}</div>
-    <div class="pp-type">${shipType(s.tipoCode)}${pos && pos.conf ? " · " + pos.conf.label : ""}</div>
-    <div class="pp-row"><span>Fundeado há</span><b>${fmtDays(days)}</b></div>
+  const aprox = e.match && !e.match.exato
+    ? `<div style="font-size:11.5px;color:var(--amber);margin:4px 0 2px">≈ Praticagem: ${e.match.pratName} — confira</div>` : "";
+  return `<div class="pp-name">${e.name}</div>
+    <div class="pp-type">${entryType(e)} · ${e.conf.label}</div>
+    ${aprox}
+    <div class="pp-row"><span>Fundeado há</span><b>${daysLabel(e)}</b></div>
     <div class="pp-row"><span>Distância</span><b>${dist}</b></div>
     <div class="pp-row"><span>LOA</span><b>${loaFt}</b></div>
     <div class="pp-row"><span>Carga</span><b>${cg.label}</b></div>
     <div class="pp-row"><span>Atraca</span><b>${at}</b></div>`;
-}
-
-/* ---------------- render ---------------- */
-let renderT = null;
-const renderSoon = () => { clearTimeout(renderT); renderT = setTimeout(render, 600); };
-
-function activeShips() {
-  return Object.values(state.ships)
-    .filter(s => state.areas[s.area])
-    .map(s => {
-      const days = s.fundeio ? (Date.now() - s.fundeio) / 86400000 : 0;
-      let pos = shipPos(s);
-      if (pos && !inRange(pos)) pos = null;  // fora de 20 nm ou colado no porto → sem posição
-      let distNm = null, brg = null;
-      if (state.me && pos) { distNm = haversineNm(state.me, pos); brg = bearing(state.me, pos); }
-      return { s, days, pos, distNm, brg };
-    });
 }
 
 function render() {
@@ -654,66 +748,82 @@ function render() {
 
   /* mapa */
   layerShips.clearLayers();
-  list.forEach(({ s, days, pos }) => {
-    if (!pos) return;
-    const color = heatColor(days);
-    const icon = L.divIcon({ className: "", iconSize: [60, 48], iconAnchor: [30, 24],
-      html: `<div class="buoy${pos.live ? " live" : ""}" style="color:${color}">
-        <div class="days" style="background:${color};position:relative">${fmtDays(days)}</div>
-        <div class="nm">${s.nome}</div></div>` });
-    const mk = L.marker([pos.lat, pos.lon], { icon }).addTo(layerShips);
-    mk.bindPopup(() => popupHtml(s, pos, days), { closeButton: false });
+  list.forEach(e => {
+    const color = e.daysKnown ? heatColor(e.days) : "#8FAEC4";
+    const icon = L.divIcon({ className: "", iconSize: [70, 48], iconAnchor: [35, 24],
+      html: `<div class="buoy${e.live ? " live" : ""}" style="color:${color}">
+        <div class="days" style="background:${color};position:relative">${daysLabel(e)}</div>
+        <div class="nm">${e.name}</div></div>` });
+    const mk = L.marker([e.pos.lat, e.pos.lon], { icon }).addTo(layerShips);
+    mk.bindPopup(() => popupHtml(e), { closeButton: false });
     mk.on("popupopen", () => {
       if (state.selLine) map.removeLayer(state.selLine);
       if (state.me) state.selLine = L.polyline(
-        [[state.me.lat, state.me.lon], [pos.lat, pos.lon]],
+        [[state.me.lat, state.me.lon], [e.pos.lat, e.pos.lon]],
         { color: "#37C4DD", weight: 2, dashArray: "6 6", opacity: .8 }).addTo(map);
     });
     mk.on("popupclose", () => { if (state.selLine) { map.removeLayer(state.selLine); state.selLine = null; } });
   });
 
   /* lista */
-  const sorted = [...list].sort((a, b) =>
-    state.sort === "days" ? b.days - a.days : (a.distNm ?? 9e9) - (b.distNm ?? 9e9));
+  const sorted = [...list].sort((a, b) => {
+    if (state.sort === "days") {
+      const av = a.daysKnown ? a.days : -1, bv = b.daysKnown ? b.days : -1;
+      return bv - av;
+    }
+    return (a.distNm ?? 9e9) - (b.distNm ?? 9e9);
+  });
   const box = $("cards");
   if (!sorted.length) {
-    box.innerHTML = '<div class="empty">Nenhum navio fundeado nas áreas selecionadas.<br>Confira os filtros em Ajustes ou toque em atualizar.</div>';
+    box.innerHTML = '<div class="empty">Nenhum navio fundeado nas áreas selecionadas.<br>'
+      + (state.aisKey ? 'Aguardando posições do AIS (pode levar alguns minutos)…' : 'Toque em atualizar.')
+      + '</div>';
     return;
   }
-  box.innerHTML = sorted.map(({ s, days, pos, distNm, brg }) => {
-    const color = heatColor(days);
-    const cg = cargoStatus(s);
-    const loaFt = (s.loaM || s.aisLoaM) ? Math.round((s.loaM || s.aisLoaM) * 3.28084) + " ft" : "—";
-    const dist = distNm != null
-      ? distNm.toFixed(1) + " nm <b style='color:var(--cyan)'>" + Math.round(brg) + "° " + cardinal(brg) + "</b>"
+  box.innerHTML = sorted.map(e => {
+    const color = e.daysKnown ? heatColor(e.days) : "#8FAEC4";
+    const cg = entryCargo(e);
+    const loaFt = entryLoaFt(e);
+    const dist = e.distNm != null
+      ? e.distNm.toFixed(1) + " nm <b style='color:var(--cyan)'>" + Math.round(e.brg) + "° " + cardinal(e.brg) + "</b>"
       : "aguardando GPS";
-    const at = s.atraca && s.atraca.dt
-      ? `<div class="cberth">⚓ Atraca ${s.atraca.dt.toLocaleString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · ${s.atraca.porto} ${s.atraca.berco} · ${s.atraca.sit}</div>`
-      : `<div class="cberth none">Sem previsão de atracação — deve ficar fundeado 🎣</div>`;
-    return `<div class="card" data-k="${s.key}">
-      <div class="rank"><div class="d" style="background:${color}">${fmtDays(days).replace(/([dh])/,"<small>$1</small>")}</div></div>
+    const confTag = e.conf.tier === "live" ? "live" : e.conf.tier === "prat" ? "partial" : "aged";
+    const p = e.prat;
+    const at = p && p.atraca && p.atraca.dt
+      ? `<div class="cberth">⚓ Atraca ${p.atraca.dt.toLocaleString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · ${p.atraca.porto} ${p.atraca.berco} · ${p.atraca.sit}</div>`
+      : (e.daysKnown
+          ? `<div class="cberth none">Sem previsão de atracação — deve ficar fundeado 🎣</div>`
+          : `<div class="cberth none" style="background:rgba(143,174,196,.1);color:var(--mist);border-color:rgba(143,174,196,.3)">Não encontrado na Praticagem — dias desconhecidos</div>`);
+    // aviso de match aproximado: mostra os dois nomes
+    const aprox = e.match && !e.match.exato
+      ? `<div class="cberth" style="background:rgba(255,179,71,.1);color:var(--amber);border-color:rgba(255,179,71,.35)">≈ Match aproximado &nbsp;·&nbsp; AIS: <b>${e.name}</b> &nbsp;↔&nbsp; Praticagem: <b>${e.match.pratName}</b> &nbsp;(confira)</div>`
+      : "";
+    const origem = p && p.origem ? (p.origem.split("/")[0]) : "—";
+    const destino = p && p.destino ? (p.destino.split("/")[0]) : "—";
+    return `<div class="card" data-mmsi="${e.ais ? e.ais.mmsi : ""}" data-lat="${e.pos.lat}" data-lon="${e.pos.lon}">
+      <div class="rank"><div class="d" style="background:${color}">${daysLabel(e).replace(/([dh?])/,"<small>$1</small>")}</div></div>
       <div>
-        <div class="cname">${s.nome}
-          ${pos && pos.conf ? `<span class="tag ${pos.conf.tier === "live" ? "live" : pos.conf.tier === "prat" ? "partial" : "aged"}">${pos.conf.label}</span>` : '<span class="tag">SEM AIS</span>'}
+        <div class="cname">${e.name}
+          <span class="tag ${confTag}">${e.conf.label}</span>
           ${cg.label !== "—" ? `<span class="tag ${cg.cls}">${cg.label}</span>` : ""}
         </div>
-        <div class="ctype">${shipType(s.tipoCode)} · ${s.area === "TUBARAO E VITORIA" ? "VIX/TUB" : s.area}</div>
+        <div class="ctype">${entryType(e)}</div>
         <div class="cgrid">
           <span>Distância <b>${dist}</b></span>
           <span>LOA <b>${loaFt}</b></span>
-          <span>De <b>${(s.origem || "—").split("/")[0]}</b></span>
-          <span>Para <b>${(s.destino || "—").split("/")[0]}</b></span>
+          <span>De <b>${origem}</b></span>
+          <span>Para <b>${destino}</b></span>
         </div>
+        ${aprox}
         ${at}
       </div></div>`;
   }).join("");
 
   box.querySelectorAll(".card").forEach(el => el.addEventListener("click", () => {
-    const sh = state.ships[el.dataset.k];
-    const pos = sh && shipPos(sh);
-    if (!pos) return;
+    const lat = parseFloat(el.dataset.lat), lon = parseFloat(el.dataset.lon);
+    if (isNaN(lat)) return;
     showView("Map");
-    map.setView([pos.lat, pos.lon], 14);
+    map.setView([lat, lon], 14);
   }));
 }
 
