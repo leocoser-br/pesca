@@ -505,6 +505,7 @@ function aisConnect() {
   if (state.ws) { try { state.ws.onclose = null; state.ws.close(); } catch (e) {} }
   setDot("dotAis", "warn");
   const ws = new WebSocket("wss://stream.aisstream.io/v0/stream");
+  ws.binaryType = "arraybuffer";
   state.ws = ws;
   ws._t0 = Date.now(); ws._gotData = false;
   ws.onopen = () => {
@@ -516,46 +517,52 @@ function aisConnect() {
     setDot("dotAis", "ok");
   };
   ws.onmessage = ev => {
-    try {
-      const m = JSON.parse(ev.data);
-      if (m.error) { toast("AIS: " + m.error); return; }
-      if (!ws._gotData) { ws._gotData = true; state.aisFails = 0; toast("AIS ao vivo conectado ✓"); }
-      const meta = m.MetaData || {};
-      const mmsi = meta.MMSI || (m.Message && m.Message.PositionReport && m.Message.PositionReport.UserID);
-      if (!mmsi) return;
-      const a = state.ais[mmsi] || (state.ais[mmsi] = { mmsi });
-      if (meta.ShipName) a.name = meta.ShipName.trim();
-      if (m.MessageType === "PositionReport") {
-        const p = m.Message.PositionReport;
-        a.lat = p.Latitude; a.lon = p.Longitude;
-        a.sog = p.Sog;                 // velocidade sobre o fundo (nós)
-        a.heading = (p.TrueHeading != null && p.TrueHeading < 360) ? p.TrueHeading : p.Cog;
-        a.t = Date.now();
-      } else if (m.MessageType === "ShipStaticData") {
-        const d = m.Message.ShipStaticData;
-        if (d.MaximumStaticDraught > 0) a.draught = d.MaximumStaticDraught;
-        if (d.Dimension) {
-          const L = (d.Dimension.A || 0) + (d.Dimension.B || 0);
-          if (L > 20) a.loaM = L;
-        }
-        if (d.Type) a.aisType = d.Type;
-      }
-      renderSoon();
-    } catch (e) {}
+    const d = ev.data;
+    // AISStream pode entregar texto, ArrayBuffer ou Blob — normaliza para texto
+    if (typeof d === "string") aisHandle(ws, d);
+    else if (d instanceof ArrayBuffer) aisHandle(ws, new TextDecoder().decode(d));
+    else if (d && d.text) d.text().then(t => aisHandle(ws, t)).catch(() => {});
   };
   ws.onclose = () => {
     setDot("dotAis", state.aisKey ? "err" : "");
-    // caiu logo após assinar e sem receber nada = chave recusada
     if (!ws._gotData && Date.now() - ws._t0 < 8000) {
       state.aisFails = (state.aisFails || 0) + 1;
       if (state.aisFails <= 2)
         toast("AIS recusou a chave — confira em aisstream.io e cole de novo em Ajustes");
-      if (state.aisFails >= 4) { setDot("dotAis", "err"); return; } // para de insistir
+      if (state.aisFails >= 4) { setDot("dotAis", "err"); return; }
     }
     clearTimeout(state.wsTimer);
     if (state.aisKey) state.wsTimer = setTimeout(aisConnect, 8000);
   };
   ws.onerror = () => { try { ws.close(); } catch (e) {} };
+}
+
+function aisHandle(ws, txt) {
+  let m;
+  try { m = JSON.parse(txt); } catch (e) { return; }
+  if (m.error) { toast("AIS: " + m.error); return; }
+  if (!ws._gotData) { ws._gotData = true; state.aisFails = 0; toast("AIS ao vivo conectado ✓"); }
+  const meta = m.MetaData || {};
+  const mmsi = meta.MMSI || (m.Message && m.Message.PositionReport && m.Message.PositionReport.UserID);
+  if (!mmsi) return;
+  const a = state.ais[mmsi] || (state.ais[mmsi] = { mmsi });
+  if (meta.ShipName) a.name = meta.ShipName.trim();
+  if (m.MessageType === "PositionReport") {
+    const p = m.Message.PositionReport;
+    a.lat = p.Latitude; a.lon = p.Longitude;
+    a.sog = p.Sog;
+    a.heading = (p.TrueHeading != null && p.TrueHeading < 360) ? p.TrueHeading : p.Cog;
+    a.t = Date.now();
+  } else if (m.MessageType === "ShipStaticData") {
+    const d = m.Message.ShipStaticData;
+    if (d.MaximumStaticDraught > 0) a.draught = d.MaximumStaticDraught;
+    if (d.Dimension) {
+      const L = (d.Dimension.A || 0) + (d.Dimension.B || 0);
+      if (L > 20) a.loaM = L;
+    }
+    if (d.Type) a.aisType = d.Type;
+  }
+  renderSoon();
 }
 const cleanKey = k => (k || "").replace(/[\s"'<>#]/g, "");
 
