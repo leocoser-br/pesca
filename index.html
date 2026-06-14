@@ -83,6 +83,11 @@ main{flex:1;position:relative;overflow:hidden}
   border-bottom:1px dashed var(--line)}
 .pp-row b{font-weight:600}
 .pp-row:last-child{border-bottom:none}
+.pp-mt{display:block;margin-top:8px;text-align:center;background:rgba(55,196,221,.15);
+  color:var(--cyan);font-weight:600;font-size:12.5px;padding:8px;border-radius:8px;text-decoration:none}
+.pp-hide{display:block;width:100%;margin-top:6px;background:rgba(255,107,94,.12);
+  color:var(--coral);border:1px solid rgba(255,107,94,.3);font-family:'Barlow';font-weight:600;
+  font-size:12px;padding:8px;border-radius:8px}
 
 /* ---------- lista ---------- */
 #viewList{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px calc(var(--sab) + 76px)}
@@ -114,6 +119,13 @@ main{flex:1;position:relative;overflow:hidden}
 .cberth{grid-column:1/-1;margin-top:6px;font-size:12px;padding:6px 9px;border-radius:8px;
   background:rgba(255,179,71,.1);color:var(--amber);border:1px dashed rgba(255,179,71,.35)}
 .cberth.none{background:rgba(91,212,149,.08);color:var(--green);border-color:rgba(91,212,149,.3)}
+.crow{grid-column:1/-1;display:flex;gap:8px;margin-top:8px}
+.cmt{flex:1;text-align:center;background:rgba(55,196,221,.14);color:var(--cyan);font-weight:600;
+  font-size:11.5px;padding:7px;border-radius:8px;text-decoration:none}
+.cact{flex:1;font-family:'Barlow';font-weight:600;font-size:11.5px;padding:7px;border-radius:8px;border:1px solid}
+.cact.hide{background:rgba(255,107,94,.1);color:var(--coral);border-color:rgba(255,107,94,.3)}
+.cact.restore{background:rgba(91,212,149,.12);color:var(--green);border-color:rgba(91,212,149,.35)}
+.card.ishidden{opacity:.55}
 .empty{padding:40px 20px;text-align:center;color:var(--mist);line-height:1.6}
 
 /* ---------- config ---------- */
@@ -158,7 +170,6 @@ nav button.active{color:var(--cyan)}
   <div class="lights">
     <div class="light"><span class="dot" id="dotGps"></span>GPS</div>
     <div class="light"><span class="dot" id="dotPrat"></span>PRAT</div>
-    <div class="light"><span class="dot" id="dotAis"></span>AIS</div>
   </div>
   <div class="stamp" id="stamp">—</div>
   <button id="btnRefresh" aria-label="Atualizar">
@@ -170,7 +181,6 @@ nav button.active{color:var(--cyan)}
   <div class="view active" id="viewMap"><div id="map"></div></div>
 
   <div class="view" id="viewList">
-    <div id="warnAprox" style="display:none;background:rgba(255,179,71,.12);border:1px solid rgba(255,179,71,.4);color:var(--amber);border-radius:10px;padding:9px 12px;font-size:12.5px;line-height:1.4;margin-bottom:10px">⚠️ Sem chave AIS — posições <b>aproximadas</b> (carimbo da Praticagem). Cole sua chave em Ajustes para ver a posição real.</div>
     <div class="listbar">
       <h2>RANKING DE ISCAS</h2>
       <button class="sortbtn" id="btnSort">Ordenar: tempo ▾</button>
@@ -179,13 +189,6 @@ nav button.active{color:var(--cyan)}
   </div>
 
   <div class="view" id="viewCfg">
-    <div class="cfgblock">
-      <h3>POSIÇÃO AO VIVO (AISSTREAM)</h3>
-      <p>Cole sua chave gratuita de <b>aisstream.io</b> para receber a posição AIS em tempo real e o calado atual dos navios. Sem a chave, o app usa a posição de fundeio informada pela Praticagem.</p>
-      <input type="text" id="aisKey" placeholder="Chave da API AISStream" autocomplete="off">
-      <button id="btnAis">Conectar AIS</button>
-      <p style="margin-top:8px">Dica: para não digitar a chave toda vez, edite o arquivo e cole a chave na linha <b>AIS_KEY_PADRAO</b> no topo do código.</p>
-    </div>
     <div class="cfgblock">
       <h3>ÁREAS DE FUNDEIO</h3>
       <label class="switch">Tubarão e Vitória <input type="checkbox" id="fVix" checked></label>
@@ -200,11 +203,11 @@ nav button.active{color:var(--cyan)}
         <span><i style="background:var(--heat2)"></i>3–7 dias</span>
         <span><i style="background:var(--heat3)"></i>7+ dias 🎣</span>
       </div>
-      <p style="margin-top:10px">Quanto mais tempo fundeado, maior a chance de sardinha e sarda agregadas no casco. Anel pulsando = posição AIS ao vivo.</p>
+      <p style="margin-top:10px">Quanto mais tempo fundeado, maior a chance de sardinha e sarda agregadas no casco.</p>
     </div>
     <div class="cfgblock">
       <h3>FONTES</h3>
-      <p>Praticagem Espírito Santo (fundeados e manobras previstas) — atualização automática a cada 10 min. AISStream.io para posições ao vivo. Condição de carga estimada pelo calado (proa/popa e relação calado/LOA).</p>
+      <p>Praticagem Espírito Santo (fundeados e manobras previstas) — atualização automática a cada 10 min. Posição de fundeio e link do navio no MarineTraffic. Condição de carga estimada pelo calado.</p>
       <a href="https://www.praticagem.org.br/navios-fundeados.html" target="_blank" rel="noopener"
          style="display:inline-block;margin-top:4px;color:var(--cyan);font-weight:600;font-size:13px;
                 text-decoration:underline">Abrir site da Praticagem ↗</a>
@@ -230,11 +233,8 @@ nav button.active{color:var(--cyan)}
 <script>
 /* =====================================================================
    Pesca nos Navios - Vix — iscas nos navios fundeados
-   Dados: Praticagem ES (fundeados.asp / previstas.asp) + AISStream.io
+   Dados: Praticagem ES (fundeados.asp / previstas.asp) + link MarineTraffic
    ===================================================================== */
-
-// >>> Cole aqui sua chave do aisstream.io para conexão automática <<<
-const AIS_KEY_PADRAO = "";
 
 const URL_FUNDEADOS = "https://www.praticagem.org.br/asp/fundeados.asp";
 const URL_PREVISTAS = "https://www.praticagem.org.br/asp/previstas.asp";
@@ -256,13 +256,29 @@ const TIPOS = {
 
 const state = {
   ships: {},          // navios da Praticagem (key: nome normalizado)
-  ais: {},            // navios do AIS ao vivo (key: MMSI)
   me: null,           // {lat, lon}
   sort: "days",
   areas: { "TUBARAO E VITORIA": true, "BARRA DO RIACHO": false, "UBU": false },
-  ws: null, wsTimer: null, aisKey: AIS_KEY_PADRAO,
+  hidden: {},         // navios marcados "não está mais aqui" → {key: fundeioTimestamp}
   selLine: null
 };
+
+/* ---------------- persistência (localStorage) ---------------- */
+const HKEY = "pescaVix_hidden_v1";
+function loadHidden() {
+  try { state.hidden = JSON.parse(localStorage.getItem(HKEY) || "{}") || {}; }
+  catch (e) { state.hidden = {}; }
+}
+function saveHidden() {
+  try { localStorage.setItem(HKEY, JSON.stringify(state.hidden)); } catch (e) {}
+}
+// navio está oculto se foi marcado E a data de fundeio é a mesma de quando foi marcado
+function isHidden(s) {
+  const h = state.hidden[s.key];
+  return h != null && s.fundeio && h === +s.fundeio;
+}
+function hideShip(s) { state.hidden[s.key] = s.fundeio ? +s.fundeio : Date.now(); saveHidden(); render(); }
+function unhideShip(key) { delete state.hidden[key]; saveHidden(); render(); }
 
 /* ---------------- util ---------------- */
 const $ = id => document.getElementById(id);
@@ -270,33 +286,6 @@ const norm = s => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 const toast = m => { const t = $("toast"); t.textContent = m; t.classList.add("show");
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 3200); };
 const setDot = (id, cls) => { const d = $(id); d.className = "dot" + (cls ? " " + cls : ""); };
-
-/* similaridade de nomes (Levenshtein normalizado 0..1) */
-function levenshtein(a, b) {
-  if (a === b) return 0;
-  const m = a.length, n = b.length;
-  if (!m) return n; if (!n) return m;
-  let prev = Array.from({ length: n + 1 }, (_, i) => i);
-  for (let i = 1; i <= m; i++) {
-    let cur = [i];
-    for (let j = 1; j <= n; j++) {
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1,
-        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    }
-    prev = cur;
-  }
-  return prev[n];
-}
-function nameSim(a, b) {               // 0..1 (1 = idêntico)
-  a = norm(a); b = norm(b);
-  if (!a || !b) return 0;
-  if (a === b) return 1;
-  if ((a.includes(b) || b.includes(a)) && Math.min(a.length, b.length) >= 4) return 0.95;
-  const d = levenshtein(a, b);
-  return 1 - d / Math.max(a.length, b.length);
-}
-const SIM_EXATO = 0.999;   // idêntico
-const SIM_APROX = 0.80;    // limiar de match aproximado
 
 function parseCoord(txt) {           // "20 23,63 S" → -20.3938
   const m = (txt || "").trim().match(/(\d+)\s+(\d+)[,.](\d+)\s*([NSEW])/i);
@@ -366,7 +355,11 @@ function mdRows(txt) {
 function mdName(cell) {
   const m = (cell || "").match(/\[([^\]]+)\]/);
   const imo = ((cell || "").match(/imo:(\d+)/) || [])[1];
-  return { nome: m ? m[1] : (cell || ""), imo };
+  const url = ((cell || "").match(/\((https?:\/\/[^)]*marinetraffic[^)]*)\)/i) || [])[1] || null;
+  return { nome: m ? m[1] : (cell || ""), imo, mtUrl: url };
+}
+function mtFromImo(imo) {
+  return imo ? "https://www.marinetraffic.com/pt/ais/details/ships/imo:" + imo : null;
 }
 function parseFundeadosMd(txt) {
   const out = []; let area = AREAS[0];
@@ -375,13 +368,14 @@ function parseFundeadosMd(txt) {
     const a = AREAS.find(x => joined.includes(x));
     if (a && !RE_DATE.test(c[0] || "")) { area = a; continue; }
     if (!RE_DATE.test(c[0] || "")) continue;
-    const { nome, imo } = mdName(c[4]);
+    const { nome, imo, mtUrl } = mdName(c[4]);
     out.push({
       area, nome, key: norm(nome),
       fundeio: parseDT(c[0], c[1]),
       lat: parseCoord(c[2]), lon: parseCoord(c[3]),
       tipoCode: c[5] || "", agencia: c[6] || "",
-      origem: c[7] || "", destino: c[8] || "", imo
+      origem: c[7] || "", destino: c[8] || "", imo,
+      mtUrl: mtUrl || mtFromImo(imo)
     });
   }
   return out;
@@ -425,7 +419,8 @@ function parseFundeados(html) {
       area, nome: c[4] || "?", key: norm(c[4]),
       fundeio: parseDT(c[0], c[1]), lat, lon,
       tipoCode: c[5] || "", agencia: c[6] || "",
-      origem: c[7] || "", destino: c[8] || "", imo
+      origem: c[7] || "", destino: c[8] || "", imo,
+      mtUrl: (link && link.href) || mtFromImo(imo)
     });
   });
   return out;
@@ -483,10 +478,6 @@ async function loadData(manual) {
     // remove da Praticagem os navios que saíram do fundeio
     Object.keys(state.ships).forEach(k => { if (!seen.has(k)) delete state.ships[k]; });
 
-    // poda navios AIS silenciosos há mais de 1h
-    const cut = Date.now() - 60 * 60 * 1000;
-    Object.keys(state.ais).forEach(k => { if ((state.ais[k].t || 0) < cut) delete state.ais[k]; });
-
     setDot("dotPrat", "ok");
     $("stamp").innerHTML = "Praticagem<br>" +
       new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -498,73 +489,6 @@ async function loadData(manual) {
   }
   btn.classList.remove("spin");
 }
-
-/* ---------------- AISStream ---------------- */
-function aisConnect() {
-  if (!state.aisKey) return;
-  if (state.ws) { try { state.ws.onclose = null; state.ws.close(); } catch (e) {} }
-  setDot("dotAis", "warn");
-  const ws = new WebSocket("wss://stream.aisstream.io/v0/stream");
-  ws.binaryType = "arraybuffer";
-  state.ws = ws;
-  ws._t0 = Date.now(); ws._gotData = false;
-  ws.onopen = () => {
-    ws.send(JSON.stringify({
-      APIKey: state.aisKey,
-      BoundingBoxes: [[[-21.05, -40.65], [-20.00, -39.75]]],
-      FilterMessageTypes: ["PositionReport", "ShipStaticData"]
-    }));
-    setDot("dotAis", "ok");
-  };
-  ws.onmessage = ev => {
-    const d = ev.data;
-    // AISStream pode entregar texto, ArrayBuffer ou Blob — normaliza para texto
-    if (typeof d === "string") aisHandle(ws, d);
-    else if (d instanceof ArrayBuffer) aisHandle(ws, new TextDecoder().decode(d));
-    else if (d && d.text) d.text().then(t => aisHandle(ws, t)).catch(() => {});
-  };
-  ws.onclose = () => {
-    setDot("dotAis", state.aisKey ? "err" : "");
-    if (!ws._gotData && Date.now() - ws._t0 < 8000) {
-      state.aisFails = (state.aisFails || 0) + 1;
-      if (state.aisFails <= 2)
-        toast("AIS recusou a chave — confira em aisstream.io e cole de novo em Ajustes");
-      if (state.aisFails >= 4) { setDot("dotAis", "err"); return; }
-    }
-    clearTimeout(state.wsTimer);
-    if (state.aisKey) state.wsTimer = setTimeout(aisConnect, 8000);
-  };
-  ws.onerror = () => { try { ws.close(); } catch (e) {} };
-}
-
-function aisHandle(ws, txt) {
-  let m;
-  try { m = JSON.parse(txt); } catch (e) { return; }
-  if (m.error) { toast("AIS: " + m.error); return; }
-  if (!ws._gotData) { ws._gotData = true; state.aisFails = 0; toast("AIS ao vivo conectado ✓"); }
-  const meta = m.MetaData || {};
-  const mmsi = meta.MMSI || (m.Message && m.Message.PositionReport && m.Message.PositionReport.UserID);
-  if (!mmsi) return;
-  const a = state.ais[mmsi] || (state.ais[mmsi] = { mmsi });
-  if (meta.ShipName) a.name = meta.ShipName.trim();
-  if (m.MessageType === "PositionReport") {
-    const p = m.Message.PositionReport;
-    a.lat = p.Latitude; a.lon = p.Longitude;
-    a.sog = p.Sog;
-    a.heading = (p.TrueHeading != null && p.TrueHeading < 360) ? p.TrueHeading : p.Cog;
-    a.t = Date.now();
-  } else if (m.MessageType === "ShipStaticData") {
-    const d = m.Message.ShipStaticData;
-    if (d.MaximumStaticDraught > 0) a.draught = d.MaximumStaticDraught;
-    if (d.Dimension) {
-      const L = (d.Dimension.A || 0) + (d.Dimension.B || 0);
-      if (L > 20) a.loaM = L;
-    }
-    if (d.Type) a.aisType = d.Type;
-  }
-  renderSoon();
-}
-const cleanKey = k => (k || "").replace(/[\s"'<>#]/g, "");
 
 /* ---------------- GPS ---------------- */
 function startGps() {
@@ -612,9 +536,6 @@ const TERMINAIS = [        // descartar navios atracados/coladas nestes pontos
   { lat: -19.8430, lon: -40.0640 },  // Barra do Riacho / Portocel
   { lat: -20.7870, lon: -40.5760 }   // Ubu / Anchieta
 ];
-const AIS_LIVE_MS = 30 * 60 * 1000;     // < 30 min = "ao vivo"
-const AIS_STALE_MS = 24 * 60 * 60 * 1000; // até 24 h ainda mostra "AIS há Xh"
-const SOG_PARADO = 0.5;                  // <= 0,5 nó = navio parado/fundeado
 
 // filtro de range + exclusão de terminais
 function inRange(pos) {
@@ -624,102 +545,44 @@ function inRange(pos) {
   return true;
 }
 
-function confFromAge(age) {
-  if (age < AIS_LIVE_MS) return { tier: "live", label: "AO VIVO" };
-  if (age < AIS_STALE_MS) return { tier: "aged", label: "AIS há " + Math.round(age / 3600000) + "h" };
-  return { tier: "old", label: "AIS +" + Math.round(age / 86400000) + "d" };
-}
-
-/* Constrói a lista de navios a exibir.
-   COM chave: AIS é a lista mestra; casa com a Praticagem 1:1 por nome.
-   SEM chave: usa a Praticagem com posição aproximada. */
+/* Lista de navios da Praticagem nas áreas ativas, dentro do range.
+   Cada entrada traz a flag 'hidden' (marcado "não está mais aqui"). */
 function activeShips() {
-  const hasKey = !!state.aisKey;
-
-  if (!hasKey) {
-    return Object.values(state.ships)
-      .filter(s => state.areas[s.area] && s.lat != null)
-      .map(s => {
-        const pos = { lat: s.lat, lon: s.lon };
-        if (!inRange(pos)) return null;
-        const days = s.fundeio ? (Date.now() - s.fundeio) / 86400000 : null;
-        let distNm = null, brg = null;
-        if (state.me) { distNm = haversineNm(state.me, pos); brg = bearing(state.me, pos); }
-        return {
-          name: s.nome, pos, live: false,
-          conf: { tier: "prat", label: "PRATICAGEM (aprox.)" },
-          days, daysKnown: days != null, match: null,
-          prat: s, distNm, brg
-        };
-      }).filter(Boolean);
-  }
-
-  // --- COM chave: AIS manda ---
-  // 1) candidatos AIS: parados, no range, fora dos terminais
-  const cands = Object.values(state.ais).filter(a => {
-    if (a.lat == null || a.sog == null) return false;
-    if (a.sog > SOG_PARADO) return false;          // só parados
-    return inRange({ lat: a.lat, lon: a.lon });
-  });
-
-  // 2) pool da Praticagem nas áreas ativas
-  const pratPool = Object.values(state.ships).filter(s => state.areas[s.area]);
-
-  // 3) melhor par (AIS, Praticagem) por similaridade — guloso, 1:1
-  const pairs = [];
-  cands.forEach(a => pratPool.forEach(p => {
-    const sim = nameSim(a.name, p.nome);
-    if (sim >= SIM_APROX) pairs.push({ a, p, sim });
-  }));
-  pairs.sort((x, y) => y.sim - x.sim);
-  const usedPrat = new Set(), matchOf = new Map();
-  pairs.forEach(({ a, p, sim }) => {
-    if (matchOf.has(a.mmsi)) return;       // AIS já casado
-    if (usedPrat.has(p.key)) return;       // Praticagem já usada (exclusividade 1:1)
-    matchOf.set(a.mmsi, { p, sim });
-    usedPrat.add(p.key);
-  });
-
-  // 4) monta as entradas finais
-  return cands.map(a => {
-    const pos = { lat: a.lat, lon: a.lon };
-    const age = Date.now() - (a.t || 0);
-    const conf = confFromAge(age);
-    const mt = matchOf.get(a.mmsi);
-    const p = mt ? mt.p : null;
-    const exato = mt ? mt.sim >= SIM_EXATO : false;
-    const days = p && p.fundeio ? (Date.now() - p.fundeio) / 86400000 : null;
-    let distNm = null, brg = null;
-    if (state.me) { distNm = haversineNm(state.me, pos); brg = bearing(state.me, pos); }
-    return {
-      name: a.name || ("MMSI " + a.mmsi), pos, live: conf.tier === "live", conf,
-      days, daysKnown: !!p,
-      match: p ? { exato, pratName: p.nome, sim: mt.sim } : null,
-      ais: a, prat: p, distNm, brg
-    };
-  });
+  return Object.values(state.ships)
+    .filter(s => state.areas[s.area] && s.lat != null)
+    .map(s => {
+      const pos = { lat: s.lat, lon: s.lon };
+      if (!inRange(pos)) return null;
+      const days = s.fundeio ? (Date.now() - s.fundeio) / 86400000 : null;
+      let distNm = null, brg = null;
+      if (state.me) { distNm = haversineNm(state.me, pos); brg = bearing(state.me, pos); }
+      return {
+        name: s.nome, key: s.key, pos,
+        days, daysKnown: days != null,
+        prat: s, mtUrl: s.mtUrl, hidden: isHidden(s),
+        distNm, brg
+      };
+    }).filter(Boolean);
 }
 
-// LOA em pés a partir de AIS (preferido) ou Praticagem
 function entryLoaFt(e) {
-  const m = (e.ais && e.ais.loaM) || (e.prat && e.prat.loaM);
+  const m = e.prat && e.prat.loaM;
   return m ? Math.round(m * 3.28084) + " ft" : "—";
 }
-// carga estimada: usa calado AIS ou calados da Praticagem
 function entryCargo(e) {
-  const loa = (e.ais && e.ais.loaM) || (e.prat && e.prat.loaM);
-  let dr = (e.ais && e.ais.draught) || null;
   const pp = e.prat;
-  if (!dr && pp && pp.calProa && pp.calPopa) dr = (pp.calProa + pp.calPopa) / 2;
+  const loa = pp && pp.loaM;
+  let dr = null;
+  if (pp && pp.calProa && pp.calPopa) dr = (pp.calProa + pp.calPopa) / 2;
   if (!dr || !loa) return { label: "—", cls: "" };
-  const trim = (pp && pp.calPopa && pp.calProa) ? pp.calPopa - pp.calProa : 0;
+  const trim = (pp.calPopa && pp.calProa) ? pp.calPopa - pp.calProa : 0;
   const r = dr / loa;
   if (r >= 0.052) return { label: "CARREGADO", cls: "loaded" };
   if (r <= 0.038 || trim >= 1.5) return { label: "LASTRO (VAZIO)", cls: "ballast" };
   return { label: "PARCIAL", cls: "partial" };
 }
 const daysLabel = e => e.daysKnown ? fmtDays(e.days) : "?";
-const entryType = e => e.prat ? shipType(e.prat.tipoCode) : "Navio (AIS)";
+const entryType = e => e.prat ? shipType(e.prat.tipoCode) : "—";
 
 function popupHtml(e) {
   const cg = entryCargo(e);
@@ -734,35 +597,34 @@ function popupHtml(e) {
     ? p.atraca.dt.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit",
         hour: "2-digit", minute: "2-digit" }) + " (" + p.atraca.porto + ")"
     : "sem previsão";
-  const aprox = e.match && !e.match.exato
-    ? `<div style="font-size:11.5px;color:var(--amber);margin:4px 0 2px">≈ Praticagem: ${e.match.pratName} — confira</div>` : "";
+  const mtBtn = e.mtUrl
+    ? `<a href="${e.mtUrl}" target="_blank" rel="noopener" class="pp-mt">Ver no MarineTraffic ↗</a>` : "";
   return `<div class="pp-name">${e.name}</div>
-    <div class="pp-type">${entryType(e)} · ${e.conf.label}</div>
-    ${aprox}
+    <div class="pp-type">${entryType(e)}</div>
     <div class="pp-row"><span>Fundeado há</span><b>${daysLabel(e)}</b></div>
     <div class="pp-row"><span>Distância</span><b>${dist}</b></div>
     <div class="pp-row"><span>LOA</span><b>${loaFt}</b></div>
     <div class="pp-row"><span>Carga</span><b>${cg.label}</b></div>
-    <div class="pp-row"><span>Atraca</span><b>${at}</b></div>`;
+    <div class="pp-row"><span>Atraca</span><b>${at}</b></div>
+    ${mtBtn}
+    <button class="pp-hide" onclick="hideShip(state.ships['${e.key}'])">✕ Não está mais aqui</button>`;
 }
 
 function render() {
   const list = activeShips();
-
-  /* banner: sem chave AIS = posições aproximadas */
   const warn = $("warnAprox");
-  if (warn) warn.style.display = state.aisKey ? "none" : "block";
+  if (warn) warn.style.display = "none";
 
-  /* mapa */
+  /* mapa: só navios NÃO ocultos */
   layerShips.clearLayers();
-  list.forEach(e => {
+  list.filter(e => !e.hidden).forEach(e => {
     const color = e.daysKnown ? heatColor(e.days) : "#8FAEC4";
     const icon = L.divIcon({ className: "", iconSize: [70, 48], iconAnchor: [35, 24],
-      html: `<div class="buoy${e.live ? " live" : ""}" style="color:${color}">
+      html: `<div class="buoy" style="color:${color}">
         <div class="days" style="background:${color};position:relative">${daysLabel(e)}</div>
         <div class="nm">${e.name}</div></div>` });
     const mk = L.marker([e.pos.lat, e.pos.lon], { icon }).addTo(layerShips);
-    mk.bindPopup(() => popupHtml(e), { closeButton: false });
+    mk.bindPopup(() => popupHtml(e), { closeButton: false, maxWidth: 240 });
     mk.on("popupopen", () => {
       if (state.selLine) map.removeLayer(state.selLine);
       if (state.me) state.selLine = L.polyline(
@@ -772,7 +634,7 @@ function render() {
     mk.on("popupclose", () => { if (state.selLine) { map.removeLayer(state.selLine); state.selLine = null; } });
   });
 
-  /* lista */
+  /* lista: TODOS (inclui ocultos, marcados) */
   const sorted = [...list].sort((a, b) => {
     if (state.sort === "days") {
       const av = a.daysKnown ? a.days : -1, bv = b.daysKnown ? b.days : -1;
@@ -782,9 +644,7 @@ function render() {
   });
   const box = $("cards");
   if (!sorted.length) {
-    box.innerHTML = '<div class="empty">Nenhum navio fundeado nas áreas selecionadas.<br>'
-      + (state.aisKey ? 'Aguardando posições do AIS (pode levar alguns minutos)…' : 'Toque em atualizar.')
-      + '</div>';
+    box.innerHTML = '<div class="empty">Nenhum navio fundeado nas áreas selecionadas.<br>Toque em atualizar.</div>';
     return;
   }
   box.innerHTML = sorted.map(e => {
@@ -794,24 +654,22 @@ function render() {
     const dist = e.distNm != null
       ? e.distNm.toFixed(1) + " nm <b style='color:var(--cyan)'>" + Math.round(e.brg) + "° " + cardinal(e.brg) + "</b>"
       : "aguardando GPS";
-    const confTag = e.conf.tier === "live" ? "live" : e.conf.tier === "prat" ? "partial" : "aged";
     const p = e.prat;
     const at = p && p.atraca && p.atraca.dt
       ? `<div class="cberth">⚓ Atraca ${p.atraca.dt.toLocaleString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})} · ${p.atraca.porto} ${p.atraca.berco} · ${p.atraca.sit}</div>`
-      : (e.daysKnown
-          ? `<div class="cberth none">Sem previsão de atracação — deve ficar fundeado 🎣</div>`
-          : `<div class="cberth none" style="background:rgba(143,174,196,.1);color:var(--mist);border-color:rgba(143,174,196,.3)">Não encontrado na Praticagem — dias desconhecidos</div>`);
-    // aviso de match aproximado: mostra os dois nomes
-    const aprox = e.match && !e.match.exato
-      ? `<div class="cberth" style="background:rgba(255,179,71,.1);color:var(--amber);border-color:rgba(255,179,71,.35)">≈ Match aproximado &nbsp;·&nbsp; AIS: <b>${e.name}</b> &nbsp;↔&nbsp; Praticagem: <b>${e.match.pratName}</b> &nbsp;(confira)</div>`
-      : "";
+      : `<div class="cberth none">Sem previsão de atracação — deve ficar fundeado 🎣</div>`;
     const origem = p && p.origem ? (p.origem.split("/")[0]) : "—";
     const destino = p && p.destino ? (p.destino.split("/")[0]) : "—";
-    return `<div class="card" data-mmsi="${e.ais ? e.ais.mmsi : ""}" data-lat="${e.pos.lat}" data-lon="${e.pos.lon}">
+    const mtLink = e.mtUrl
+      ? `<a href="${e.mtUrl}" target="_blank" rel="noopener" class="cmt" onclick="event.stopPropagation()">MarineTraffic ↗</a>` : "";
+    const actions = e.hidden
+      ? `<button class="cact restore" onclick="event.stopPropagation();unhideShip('${e.key}')">↺ Restaurar no mapa</button>`
+      : `<button class="cact hide" onclick="event.stopPropagation();hideShip(state.ships['${e.key}'])">✕ Não está mais aqui</button>`;
+    return `<div class="card${e.hidden ? " ishidden" : ""}" data-key="${e.key}" data-lat="${e.pos.lat}" data-lon="${e.pos.lon}">
       <div class="rank"><div class="d" style="background:${color}">${daysLabel(e).replace(/([dh?])/,"<small>$1</small>")}</div></div>
       <div>
         <div class="cname">${e.name}
-          <span class="tag ${confTag}">${e.conf.label}</span>
+          ${e.hidden ? '<span class="tag">REMOVIDO</span>' : ""}
           ${cg.label !== "—" ? `<span class="tag ${cg.cls}">${cg.label}</span>` : ""}
         </div>
         <div class="ctype">${entryType(e)}</div>
@@ -821,8 +679,8 @@ function render() {
           <span>De <b>${origem}</b></span>
           <span>Para <b>${destino}</b></span>
         </div>
-        ${aprox}
         ${at}
+        <div class="crow">${mtLink}${actions}</div>
       </div></div>`;
   }).join("");
 
@@ -851,23 +709,17 @@ $("btnSort").onclick = () => {
   $("btnSort").textContent = state.sort === "days" ? "Ordenar: tempo ▾" : "Ordenar: distância ▾";
   render();
 };
-$("btnAis").onclick = () => {
-  state.aisKey = cleanKey($("aisKey").value);
-  $("aisKey").value = state.aisKey;
-  state.aisFails = 0;
-  if (!state.aisKey) { toast("Cole a chave do AISStream"); return; }
-  aisConnect(); toast("Conectando ao AIS…"); showView("Map");
-};
 ["fVix", "fRch", "fUbu"].forEach((id, i) => $(id).onchange = e => {
   state.areas[AREAS[i]] = e.target.checked; render();
 });
 
+// expõe para os onclick inline dos cards/popup
+window.state = state;
+window.hideShip = hideShip;
+window.unhideShip = unhideShip;
+
 /* ---------------- boot ---------------- */
-// Chave AIS pode vir na própria URL: https://seusite/#ais=SUACHAVE
-const hashKey = (location.hash.match(/ais=([^&]+)/) || [])[1];
-if (hashKey) state.aisKey = cleanKey(decodeURIComponent(hashKey));
-else if (AIS_KEY_PADRAO) state.aisKey = cleanKey(AIS_KEY_PADRAO);
-if (state.aisKey) { $("aisKey").value = state.aisKey; aisConnect(); }
+loadHidden();
 startGps();
 loadData(false);
 setInterval(() => loadData(false), REFRESH_MS);
