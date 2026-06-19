@@ -206,6 +206,20 @@ nav button.active{color:var(--cyan)}
       <p style="margin-top:10px">Quanto mais tempo fundeado, maior a chance de sardinha e sarda agregadas no casco.</p>
     </div>
     <div class="cfgblock">
+      <h3>USO DO APP</h3>
+      <div style="display:flex;gap:14px;text-align:center">
+        <div style="flex:1">
+          <div id="statTotal" style="font-family:'Barlow Condensed';font-weight:700;font-size:32px;color:var(--cyan);line-height:1">—</div>
+          <div style="font-size:10.5px;color:var(--mist);letter-spacing:.08em">ABERTURAS TOTAIS</div>
+        </div>
+        <div style="flex:1">
+          <div id="statDevices" style="font-family:'Barlow Condensed';font-weight:700;font-size:32px;color:var(--amber);line-height:1">—</div>
+          <div style="font-size:10.5px;color:var(--mist);letter-spacing:.08em">APARELHOS (ESTIM.)</div>
+        </div>
+      </div>
+      <p style="margin-top:10px;font-size:11.5px">Contador anônimo de uso. "Aberturas" soma toda vez que o app é aberto; "aparelhos" estima quantos celulares distintos já usaram (conta 1 por aparelho na primeira vez).</p>
+    </div>
+    <div class="cfgblock">
       <h3>FONTES</h3>
       <p>Praticagem Espírito Santo (fundeados e manobras previstas) — atualização automática a cada 10 min. Posição de fundeio e link do navio no MarineTraffic. Condição de carga estimada pelo calado.</p>
       <a href="https://www.praticagem.org.br/navios-fundeados.html" target="_blank" rel="noopener"
@@ -718,8 +732,34 @@ window.state = state;
 window.hideShip = hideShip;
 window.unhideShip = unhideShip;
 
+/* ---------------- contador de uso (anônimo) ---------------- */
+const COUNT_BASE = "https://countapi.mileshilliard.com/api/v1";
+const K_OPENS = "pescavix_aberturas";    // incrementa toda abertura
+const K_DEVS  = "pescavix_aparelhos";    // incrementa 1x por aparelho
+const FIRST_FLAG = "pescaVix_contado_v1";
+
+async function bumpCounter() {
+  // 1) toda abertura conta
+  try {
+    const r = await fetch(COUNT_BASE + "/hit/" + K_OPENS);
+    const j = await r.json();
+    if (j && j.value != null) $("statTotal").textContent = j.value;
+  } catch (e) { $("statTotal").textContent = "—"; }
+  // 2) aparelho novo conta só na primeira vez
+  let novo = false;
+  try { novo = !localStorage.getItem(FIRST_FLAG); } catch (e) {}
+  try {
+    const ep = novo ? "/hit/" : "/get/";
+    const r = await fetch(COUNT_BASE + ep + K_DEVS);
+    const j = await r.json();
+    if (j && j.value != null) $("statDevices").textContent = j.value;
+    if (novo) { try { localStorage.setItem(FIRST_FLAG, "1"); } catch (e) {} }
+  } catch (e) { $("statDevices").textContent = "—"; }
+}
+
 /* ---------------- boot ---------------- */
 loadHidden();
+bumpCounter();
 startGps();
 loadData(false);
 setInterval(() => loadData(false), REFRESH_MS);
